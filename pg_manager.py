@@ -186,7 +186,7 @@ class PostgreSQLManager:
                             print(f"  - 域名: {address.domain}")
                             print(f"  - 端口: {address.port}")
                             print(f"  - 完整连接地址: {address.domain}:{address.port}")
-                            return True
+                            return address.domain, address.port
 
             # 如果不存在，则创建新的公网访问端点
             request = volcenginesdkrdspostgresql.CreateDBEndpointPublicAddressRequest(
@@ -454,7 +454,8 @@ def main():
         return
 
     # 3. 创建公网访问端点
-    if not pg_manager.create_public_endpoint(instance_id, eip_id):
+    address_domain, address_port = pg_manager.create_public_endpoint(instance_id, eip_id)
+    if not address_domain:
         logger.error("创建公网访问端点失败")
         return
 
@@ -486,11 +487,12 @@ def main():
     logger.info(f"成功完成所有操作！")
     logger.info(f"PostgreSQL实例ID: {instance_id}")
     logger.info(f"EIP地址: {eip_address}")
+    logger.info(f"公网访问: {address_domain}:{address_port}")
     logger.info(f"数据库列表: {', '.join([db['name'] for db in pg_config['databases']])}")
-    logger.info(f"主用户名: {pg_config['accounts'][0]['username']}")
-    logger.info(f"主用户密码: {pg_config['accounts'][0]['password']}")
-    logger.info(f"只读用户名: {pg_config['accounts'][1]['username']}")
-    logger.info(f"只读用户密码: {pg_config['accounts'][1]['password']}")
+    logger.info(f"超级用户名: {pg_config['accounts'][0]['username']}")
+    logger.info(f"超级用户密码: {pg_config['accounts'][0]['password']}")
+    logger.info(f"普通用户名: {pg_config['accounts'][1]['username']}")
+    logger.info(f"普通用户密码: {pg_config['accounts'][1]['password']}")
     logger.info(f"Schema列表: {', '.join([f"{db['name']}.{schema['name']}" for db in pg_config['databases'] for schema in db['schemas']])}")
 
 if __name__ == '__main__':
