@@ -7,13 +7,23 @@ import logging
 
 from configs.api_config import api_config   
 from configs.network_config import network_config
+import os
+# 确保logs目录存在
+log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+os.makedirs(log_dir, exist_ok=True)
 
-# 配置日志
+# 配置日志记录
+# 添加文件处理器
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+file_handler = logging.FileHandler(os.path.join(log_dir, 'vpc_manager.log'))
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(file_handler)
+
 
 class VPCManager:
     def __init__(self):
@@ -223,6 +233,19 @@ def main():
     if not subnet_ids:
         logger.error("所有子网创建均失败")
         return
+
+    # 将VPC和子网信息写入日志文件
+    subnet_ids_info = ''
+    for subnet_config, subnet_id in zip(network_config['subnets'], subnet_ids):
+        subnet_ids_info += f"- 子网ID: {subnet_id}\n  可用区: {subnet_config['zone_id']}\n  名称: {subnet_config['name']}\n"
+
+    vpc_resource_info_path = os.path.join(log_dir, 'vpc_resource_info.md')
+    with open(vpc_resource_info_path, 'a', encoding='utf-8') as f:
+        f.write(f"# VPC和子网资源记录\n\n")
+        f.write(f"## 记录时间\n{time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        f.write(f"## VPC信息\n- VPC ID: {vpc_id}\n\n")
+        f.write(f"## 子网信息\n{subnet_ids_info}\n")
+        f.write("---\n\n")
 
     logger.info(f"成功完成所有操作！")
     logger.info(f"VPC ID: {vpc_id}")

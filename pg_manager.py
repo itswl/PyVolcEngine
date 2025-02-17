@@ -6,18 +6,29 @@ from volcenginesdkcore.rest import ApiException
 import time
 import logging
 from configs.api_config import api_config, timeout_config
-from configs.pg_config import pg_config
+from configs.pg_config import pg_configs
 from configs.network_config import network_config
 from whitelist_manager import WhitelistManager
 from vpc_manager import VPCManager
 from whitelist_binding_manager import WhitelistBindingManager
 
-# 配置日志
+
+import os
+# 确保logs目录存在
+log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+os.makedirs(log_dir, exist_ok=True)
+
+# 配置日志记录
+# 添加文件处理器
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+file_handler = logging.FileHandler(os.path.join(log_dir, 'pg_manager.log'))
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(file_handler)
 
 class PostgreSQLManager:
     def __init__(self):
@@ -25,6 +36,7 @@ class PostgreSQLManager:
         self.pg_api = volcenginesdkrdspostgresql.RDSPOSTGRESQLApi()
         self.vpc_api = volcenginesdkvpc.VPCApi()
         self.vpc_manager = VPCManager()
+        self.current_config = None  # 当前正在处理的配置
 
     def _init_client(self):
         configuration = volcenginesdkcore.Configuration()
@@ -34,7 +46,8 @@ class PostgreSQLManager:
         configuration.client_side_validation = True
         volcenginesdkcore.Configuration.set_default(configuration)
 
-    def create_pg_instance(self):
+    def create_pg_instance(self, pg_config, vpc_id=None, subnet_id=None):
+        self.current_config = pg_config  # 设置当前配置
         try:
             # 先列出所有实例
             list_request = volcenginesdkrdspostgresql.DescribeDBInstancesRequest()
@@ -46,54 +59,9 @@ class PostgreSQLManager:
                     print("实例已存在，实例ID: %s" % instance.instance_id)
                     return instance.instance_id
 
-            # 创建VPC和子网
-            vpc_id = self.vpc_manager.create_vpc(
-                vpc_name=network_config['vpc']['name'],
-                cidr_block=network_config['vpc']['cidr_block'],
-                description=network_config['vpc']['description'],
-                tags=network_config['vpc']['tags']
-            )
-            if not vpc_id:
-                print("创建VPC失败")
-                return None
-
-            # 等待VPC就绪
-            if not self.vpc_manager.wait_for_vpc_available(vpc_id):
-                print("VPC创建超时或失败")
-                return None
-
-            # 创建所有子网
-            subnet_ids = []
-            instance_zone_subnet_id = None
-            for subnet_config in network_config['subnets']:
-                subnet_id = self.vpc_manager.create_subnet(
-                    vpc_id=vpc_id,
-                    subnet_name=subnet_config['name'],
-                    cidr_block=subnet_config['cidr_block'],
-                    zone_id=subnet_config['zone_id'],
-                    description=subnet_config.get('description'),
-                    tags=subnet_config.get('tags')
-                )
-                if subnet_id:
-                    subnet_ids.append(subnet_id)
-                    # 记录实例所在可用区的子网ID
-                    if subnet_config['zone_id'] == pg_config['instance']['zone_id']:
-                        instance_zone_subnet_id = subnet_id
-
-            if not subnet_ids:
-                print("创建子网失败")
-                return None
-
-            if not instance_zone_subnet_id:
-                print("在实例指定可用区未找到或创建子网失败")
-                return None
-
-            # 使用实例所在可用区的子网ID
-            subnet_id = instance_zone_subnet_id
-
-            # 等待子网就绪
-            if not self.vpc_manager.wait_for_subnet_available(subnet_id):
-                print("子网创建超时或失败")
+            # 检查是否提供了必要的网络参数
+            if not vpc_id or not subnet_id:
+                logger.error("创建PostgreSQL实例需要提供有效的VPC ID和子网ID")
                 return None
 
             # 如果不存在，则创建新实例
@@ -133,40 +101,35 @@ class PostgreSQLManager:
             return None
 
     def allocate_eip(self):
-        try:
-            # 先列出现有的 EIP
-            list_request = volcenginesdkvpc.DescribeEipAddressesRequest()
-            list_response = self.vpc_api.describe_eip_addresses(list_request)
-            
-            # 检查是否已存在名为 "test-eip" 的 EIP
-            if hasattr(list_response, 'eip_addresses'):
-                for eip in list_response.eip_addresses:
-                    if eip.name == pg_config['eip']['name']:
-                        print("找到已存在的EIP: %s" % eip.eip_address)
-                        return eip.allocation_id, eip.eip_address
+        from eip_manager import EIPManager
+        eip_manager = EIPManager()
+        return eip_manager.allocate_eip(self.current_config['eip'])
 
-            # 如果不存在，创建新的 EIP
-            # 将period_unit从字符串映射为整数值
-            period_unit_map = {"Month": 1, "Year": 2}
-            period_unit = period_unit_map.get(pg_config['eip']['period_unit'], 1)  # 默认使用1（月）
-            
-            request = volcenginesdkvpc.AllocateEipAddressRequest(
-                billing_type=pg_config['eip']['billing_type'],
-                bandwidth=pg_config['eip']['bandwidth'],
-                isp=pg_config['eip']['isp'],
-                name=pg_config['eip']['name'],
-                description=pg_config['eip']['description'],
-                project_name=pg_config['eip']['project_name'],
-                period_unit=period_unit,
-                period=pg_config['eip']['period']
+    def get_private_endpoint(self, instance_id):
+        try:
+            # 查询实例详情获取内网访问信息
+            describe_request = volcenginesdkrdspostgresql.DescribeDBInstanceDetailRequest(
+                instance_id=instance_id
             )
+            describe_response = self.pg_api.describe_db_instance_detail(describe_request)
             
-            response = self.vpc_api.allocate_eip_address(request)
-            print("EIP申请成功: %s" % response)
-            return response.allocation_id, response.eip_address
+            # 遍历endpoints查找内网连接点
+            if hasattr(describe_response, 'endpoints'):
+                for endpoint in describe_response.endpoints:
+                    for address in endpoint.address:
+                        if address.network_type == 'Private':
+                            print(f"内网访问端点信息:")
+                            print(f"  - 域名: {address.domain}")
+                            print(f"  - IP地址: {address.ip_address}")
+                            print(f"  - 端口: {address.port}")
+                            print(f"  - 完整连接地址: {address.domain}:{address.port}")
+                            return address.domain, address.port
+            
+            print("未找到内网访问端点信息")
+            return None, None
             
         except ApiException as e:
-            print("申请EIP时发生异常: %s\n" % e)
+            print("获取内网访问信息时发生异常: %s\n" % e)
             return None, None
 
     def create_public_endpoint(self, instance_id, eip_id):
@@ -214,6 +177,7 @@ class PostgreSQLManager:
                                 print(f"  - 域名: {address.domain}")
                                 print(f"  - 端口: {address.port}")
                                 print(f"  - 完整连接地址: {address.domain}:{address.port}")
+                                return address.domain, address.port
                                 return True
                 
                 if retry < max_retries - 1:
@@ -290,7 +254,7 @@ class PostgreSQLManager:
                 logger.info("当前实例没有已存在的数据库")
             
             # 遍历配置中的所有数据库
-            for db_config in pg_config['databases']:
+            for db_config in self.current_config['databases']:
                 if db_config['name'] in existing_databases:
                     logger.info(f"数据库 {db_config['name']} 已存在，无需重复创建")
                     continue
@@ -346,7 +310,7 @@ class PostgreSQLManager:
             list_response = self.pg_api.describe_db_accounts(list_request)
             
             # 遍历配置中的所有账号
-            for account_config in pg_config['accounts']:
+            for account_config in self.current_config['accounts']:
                 account_exists = False
                 
                 # 检查账号是否已存在
@@ -378,7 +342,7 @@ class PostgreSQLManager:
     def create_schema(self, instance_id):
         try:
             # 遍历配置中的所有数据库和Schema
-            for db_config in pg_config['databases']:
+            for db_config in self.current_config['databases']:
                 print(f"\n数据库: {db_config['name']}")
                 print("Schema列表:")
                 
@@ -418,10 +382,10 @@ class PostgreSQLManager:
         try:
             request = volcenginesdkrdspostgresql.ModifyBackupPolicyRequest(
                 instance_id=instance_id,
-                backup_retention_period=pg_config['backup']['retention_period'],
-                full_backup_period=pg_config['backup']['full_backup_period'],
-                full_backup_time=pg_config['backup']['full_backup_time'],
-                increment_backup_frequency=pg_config['backup']['increment_backup_frequency']
+                backup_retention_period=self.current_config['backup']['retention_period'],
+                full_backup_period=self.current_config['backup']['full_backup_period'],
+                full_backup_time=self.current_config['backup']['full_backup_time'],
+                increment_backup_frequency=self.current_config['backup']['increment_backup_frequency']
             )
             
             self.pg_api.modify_backup_policy(request)
@@ -434,66 +398,173 @@ class PostgreSQLManager:
 
 def main():
     pg_manager = PostgreSQLManager()
+    vpc_manager = VPCManager()
+    subnet_id = None  # 初始化subnet_id变量
 
-    # 1. 创建PostgreSQL实例
-    instance_id = pg_manager.create_pg_instance()
-    if not instance_id:
-        logger.error("创建PostgreSQL实例失败")
-        return
+    # 遍历所有PostgreSQL实例配置
+    for pg_config in pg_configs:
+        logger.info(f"\n开始创建实例: {pg_config['instance']['name']}")
 
-    # 等待实例创建完成
-    logger.info("等待实例创建完成...")
-    if not pg_manager.wait_for_instance_ready(instance_id):
-        logger.error("实例创建超时或失败")
-        return
+        # 1. 检查配置中是否已指定VPC和子网
+        if 'vpc_id' in pg_config['instance'] and 'subnet_id' in pg_config['instance']:
+            vpc_id = pg_config['instance']['vpc_id']
+            subnet_id = pg_config['instance']['subnet_id']
+            logger.info(f"使用配置中指定的VPC ID: {vpc_id} 和子网 ID: {subnet_id}")
+            instance_subnet_id = subnet_id
+        else:
+            # 创建VPC
+            vpc_id = vpc_manager.create_vpc(
+                vpc_name=pg_config['instance']['vpc']['name'],
+                cidr_block=pg_config['instance']['vpc']['cidr_block'],
+                description=pg_config['instance']['vpc']['description'],
+                tags=pg_config['instance']['vpc']['tags']
+            )
+            if not vpc_id:
+                logger.error("创建VPC失败")
+                continue
 
-    # 2. 申请EIP
-    eip_id, eip_address = pg_manager.allocate_eip()
-    if not eip_id:
-        logger.error("申请EIP失败")
-        return
+            # 等待VPC就绪
+            if not vpc_manager.wait_for_vpc_available(vpc_id):
+                logger.error("VPC创建超时或失败")
+                continue
 
-    # 3. 创建公网访问端点
-    address_domain, address_port = pg_manager.create_public_endpoint(instance_id, eip_id)
-    if not address_domain:
-        logger.error("创建公网访问端点失败")
-        return
+            # 创建实例专用子网
+            subnet_config = pg_config['instance']['subnet']
+            subnet_id = vpc_manager.create_subnet(
+                vpc_id=vpc_id,
+                subnet_name=subnet_config['name'],
+                cidr_block=subnet_config['cidr_block'],
+                zone_id=subnet_config['zone_id'],
+                description=subnet_config.get('description'),
+                tags=subnet_config.get('tags')
+            )
+            if not subnet_id:
+                logger.error(f"创建子网 {subnet_config['name']} 失败")
+                continue
 
-    # 4. 创建白名单
-    if not pg_manager.create_whitelist(instance_id):
-        logger.error("创建白名单失败")
-        return
+            # 等待子网就绪
+            if not vpc_manager.wait_for_subnet_available(subnet_id):
+                logger.error(f"子网 {subnet_config['name']} 创建超时或失败")
+                continue
 
-    # 5. 创建账号
-    if not pg_manager.create_account(instance_id):
-        logger.error("创建账号失败")
-        return
+            logger.info(f"子网 {subnet_config['name']} 创建成功，ID: {subnet_id}")
+            instance_subnet_id = subnet_id
 
-    # 6. 创建数据库
-    if not pg_manager.create_database(instance_id):
-        logger.error("创建数据库失败")
-        return
+        if not instance_subnet_id:
+            logger.error("在实例指定可用区未找到或创建子网失败")
+            continue
 
-    # 7. 创建Schema
-    if not pg_manager.create_schema(instance_id):
-        logger.error("创建Schema失败")
-        return
+        # 3. 创建PostgreSQL实例
+        instance_id = pg_manager.create_pg_instance(pg_config, vpc_id, subnet_id)
+        if not instance_id:
+            logger.error("创建PostgreSQL实例失败")
+            continue
 
-    # 8. 修改备份策略
-    if not pg_manager.modify_backup_policy(instance_id):
-        logger.error("修改备份策略失败")
-        return
+        # 等待实例创建完成
+        logger.info("等待实例创建完成...")
+        if not pg_manager.wait_for_instance_ready(instance_id):
+            logger.error("实例创建超时或失败")
+            continue
 
-    logger.info(f"成功完成所有操作！")
-    logger.info(f"PostgreSQL实例ID: {instance_id}")
-    logger.info(f"EIP地址: {eip_address}")
-    logger.info(f"公网访问: {address_domain}:{address_port}")
-    logger.info(f"数据库列表: {', '.join([db['name'] for db in pg_config['databases']])}")
-    logger.info(f"超级用户名: {pg_config['accounts'][0]['username']}")
-    logger.info(f"超级用户密码: {pg_config['accounts'][0]['password']}")
-    logger.info(f"普通用户名: {pg_config['accounts'][1]['username']}")
-    logger.info(f"普通用户密码: {pg_config['accounts'][1]['password']}")
-    logger.info(f"Schema列表: {', '.join([f"{db['name']}.{schema['name']}" for db in pg_config['databases'] for schema in db['schemas']])}")
+        # 4. 申请EIP
+        eip_id, eip_address, eip_name = pg_manager.allocate_eip()
+        if not eip_id:
+            logger.error("申请EIP失败")
+            continue
+
+        # 5. 创建公网访问端点
+        address_domain, address_port = pg_manager.create_public_endpoint(instance_id, eip_id)
+        if not address_domain:
+            logger.error("创建公网访问端点失败")
+            continue
+        # 5.1.  获取内网访问端点
+        private_address_domain, private_address_port = pg_manager.get_private_endpoint(instance_id)
+        if not address_domain:
+            logger.error("创建公网访问端点失败")
+            continue
+        # 6. 创建白名单
+        if not pg_manager.create_whitelist(instance_id):
+            logger.error("创建白名单失败")
+            continue
+
+        # 7. 创建账号
+        if not pg_manager.create_account(instance_id):
+            logger.error("创建账号失败")
+            continue
+
+        # 8. 创建数据库
+        if not pg_manager.create_database(instance_id):
+            logger.error("创建数据库失败")
+            continue
+
+        # 9. 创建Schema
+        if not pg_manager.create_schema(instance_id):
+            logger.error("创建Schema失败")
+            continue
+
+        # 10. 修改备份策略
+        if not pg_manager.modify_backup_policy(instance_id):
+            logger.error("修改备份策略失败")
+            continue
+
+        logger.info(f"成功完成实例 {pg_config['instance']['name']} 的所有操作！")
+        
+        # 将实例信息写入日志文件，使用追加模式
+        pg_instance_info_path = os.path.join(log_dir, 'pg_instance_info.md')
+        with open(pg_instance_info_path, 'a', encoding='utf-8') as f:
+            # 添加分隔符和时间戳
+            f.write(f"\n{'='*50}\n")
+            f.write(f"记录时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            f.write(f"# PostgreSQL实例创建记录\n\n")
+            f.write(f"## 实例信息\n")
+            f.write(f"- 实例ID: {instance_id}\n")
+            f.write(f"- 实例名称: {pg_config['instance']['name']}\n")
+            f.write(f"- 创建时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            
+            f.write(f"## 网络配置\n")
+            f.write(f"- VPC ID: {vpc_id}\n")
+            f.write(f"- 子网 ID: {subnet_id}\n")
+            f.write(f"- EIP名称: {eip_name}\n")
+            f.write(f"- EIP地址: {eip_address}\n")
+            f.write(f"- EIP ID: {eip_id}\n")
+            f.write(f"- 内网访问域名: {private_address_domain}\n")
+            f.write(f"- 内网访问端口: {private_address_port}\n")
+            f.write(f"- 公网访问域名: {address_domain}\n")
+            f.write(f"- 公网访问端口: {address_port}\n")
+
+
+            f.write(f"## 数据库配置\n")
+            f.write(f"- 数据库列表: {', '.join([db['name'] for db in pg_config['databases']])}\n\n")
+            
+            f.write(f"## 账号信息\n")
+            f.write(f"- 超级用户名: {pg_config['accounts'][0]['username']}\n")
+            f.write(f"- 超级用户密码: {pg_config['accounts'][0]['password']}\n")
+            f.write(f"- 普通用户名: {pg_config['accounts'][1]['username']}\n")
+            f.write(f"- 普通用户密码: {pg_config['accounts'][1]['password']}\n\n")
+            
+            f.write(f"## Schema配置\n")
+            for db in pg_config['databases']:
+                for schema in db['schemas']:
+                    f.write(f"- {db['name']}.{schema['name']}\n")
+            f.write("\n")
+            
+            f.write(f"## 备份策略\n")
+            f.write(f"- 备份保留天数: {pg_config['backup']['retention_period']}天\n")
+            f.write(f"- 全量备份周期: {pg_config['backup']['full_backup_period']}\n")
+            f.write(f"- 全量备份时间: {pg_config['backup']['full_backup_time']}\n")
+            f.write(f"- 增量备份频率: {pg_config['backup']['increment_backup_frequency']}\n")
+        
+        logger.info(f"PostgreSQL实例ID: {instance_id}")
+        logger.info(f"VPC ID: {vpc_id}")
+        logger.info(f"子网 ID: {subnet_id}")
+        logger.info(f"EIP地址: {eip_address}")
+        logger.info(f"公网访问: {address_domain}:{address_port}")
+        logger.info(f"数据库列表: {', '.join([db['name'] for db in pg_config['databases']])}")
+        logger.info(f"超级用户名: {pg_config['accounts'][0]['username']}")
+        logger.info(f"超级用户密码: {pg_config['accounts'][0]['password']}")
+        logger.info(f"普通用户名: {pg_config['accounts'][1]['username']}")
+        logger.info(f"普通用户密码: {pg_config['accounts'][1]['password']}")
+        logger.info(f"Schema列表: {', '.join([f"{db['name']}.{schema['name']}" for db in pg_config['databases'] for schema in db['schemas']])}")
 
 if __name__ == '__main__':
     main()

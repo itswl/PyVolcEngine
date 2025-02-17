@@ -1,7 +1,7 @@
 # API配置
 api_config = {
-    "ak": "AKxxxx",
-    "sk": "WVxxx",
+    "ak": "xxxx",
+    "sk": "xxxx",
     "region": "cn-shanghai"
 }
 
