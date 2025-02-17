@@ -5,10 +5,25 @@ import volcenginesdkrdspostgresql
 from configs.whitelist_config import whitelist_config
 from configs.api_config import api_config
 import logging
+import os
+
+# 确保logs目录存在
+log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+os.makedirs(log_dir, exist_ok=True)
 
 # 配置日志记录
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# 添加文件处理器
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+file_handler = logging.FileHandler(os.path.join(log_dir, 'whitelist_manager.log'))
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(file_handler)
+
+
 
 class WhitelistManager:
     def __init__(self):
@@ -50,6 +65,11 @@ class WhitelistManager:
             )
             create_response = self.pg_api.create_allow_list(create_request)
             logger.info(f"白名单 {whitelist_config['name']} 创建成功")
+            logger.info(f"白名单详细信息：")
+            logger.info(f"  - ID: {create_response.allow_list_id}")
+            logger.info(f"  - 名称: {whitelist_config['name']}")
+            logger.info(f"  - 描述: {whitelist_config['description']}")
+            logger.info(f"  - IP列表: {', '.join(whitelist_config['ip_list'])}")
             return True, create_response.allow_list_id
             
         except ApiException as e:
@@ -66,6 +86,20 @@ class WhitelistManager:
             success, whitelist_id = self.create_whitelist(whitelist_item)
             if success and whitelist_id:
                 whitelist_ids[whitelist_item['name']] = whitelist_id
+                # 获取并记录已存在白名单的详细信息
+                if whitelist_id:
+                    try:
+                        detail_request = volcenginesdkrdspostgresql.DescribeAllowListDetailRequest(
+                            allow_list_id=whitelist_id
+                        )
+                        detail_response = self.pg_api.describe_allow_list_detail(detail_request)
+                        logger.info(f"已存在的白名单详细信息：")
+                        logger.info(f"  - ID: {whitelist_id}")
+                        logger.info(f"  - 名称: {whitelist_item['name']}")
+                        logger.info(f"  - 描述: {whitelist_item['description']}")
+                        logger.info(f"  - IP列表: {', '.join(whitelist_item['ip_list'])}")
+                    except ApiException as e:
+                        logger.warning(f"获取白名单 {whitelist_id} 详细信息时发生异常: {e}")
         return whitelist_ids
 
 def main():

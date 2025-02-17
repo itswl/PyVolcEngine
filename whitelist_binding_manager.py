@@ -5,8 +5,23 @@ import volcenginesdkrdspostgresql
 from whitelist_manager import WhitelistManager
 from configs.api_config import api_config
 import logging
+import os
+# 确保logs目录存在
+log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+os.makedirs(log_dir, exist_ok=True)
 
+# 配置日志记录
+# 添加文件处理器
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+file_handler = logging.FileHandler(os.path.join(log_dir, 'whitelist_binding_manager.log'))
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(file_handler)
+
 
 class WhitelistBindingManager:
     def __init__(self):
