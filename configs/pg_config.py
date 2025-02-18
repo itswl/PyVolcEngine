@@ -16,25 +16,6 @@
 
 from os import environ
 
-# 默认VPC配置模板
-# 当需要创建新的VPC时使用此配置
-default_vpc_config = {
-    "name": "test-vpc",  # VPC名称
-    "cidr_block": "172.16.0.0/16",  # VPC网段，支持10.0.0.0/8、172.16.0.0/12和192.168.0.0/16
-    "description": "测试用VPC",  # VPC描述信息
-    "project_name": "default",  # 项目名称，用于资源分组
-    "tags": [  # 标签配置，用于资源分类和管理
-        {
-            "key": "environment",  # 环境标签
-            "value": "test"
-        },
-        {
-            "key": "project",  # 项目标签
-            "value": "demo"
-        }
-    ]
-}
-
 # PostgreSQL实例配置列表
 # 支持配置多个实例，每个实例可以有不同的规格和配置
 pg_configs = [

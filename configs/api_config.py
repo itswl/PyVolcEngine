@@ -1,8 +1,9 @@
-# API配置
+# API配置信息
 api_config = {
-    "ak": "xxxx",
-    "sk": "xxxx",
-    "region": "cn-shanghai"
+    'ak': 'xxx',
+    'sk': 'xxx',
+    'region': 'cn-shanghai',  
+    'endpoint': 'open.volcengineapi.com'
 }
 
 # 超时配置
