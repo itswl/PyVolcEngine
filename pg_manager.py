@@ -33,7 +33,8 @@ logger.addHandler(file_handler)
 class PostgreSQLManager:
     def __init__(self):
         self._init_client()
-        self.pg_api = volcenginesdkrdspostgresql.RDSPOSTGRESQLApi()
+        self.api = volcenginesdkrdspostgresql
+        self.client_api = self.api.RDSPOSTGRESQLApi()
         self.vpc_api = volcenginesdkvpc.VPCApi()
         self.vpc_manager = VPCManager()
         self.current_config = None  # 当前正在处理的配置
@@ -50,8 +51,8 @@ class PostgreSQLManager:
         self.current_config = pg_config  # 设置当前配置
         try:
             # 先列出所有实例
-            list_request = volcenginesdkrdspostgresql.DescribeDBInstancesRequest()
-            list_response = self.pg_api.describe_db_instances(list_request)
+            list_request = self.api.DescribeDBInstancesRequest()
+            list_response = self.client_api.describe_db_instances(list_request)
             
             # 检查是否已存在名为配置中指定的实例
             for instance in list_response.instances:
@@ -65,7 +66,7 @@ class PostgreSQLManager:
                 return None
 
             # 如果不存在，则创建新实例
-            request = volcenginesdkrdspostgresql.CreateDBInstanceRequest(
+            request = self.api.CreateDBInstanceRequest(
                 instance_name=pg_config['instance']['name'],
                 db_engine_version=pg_config['instance']['engine_version'],
                 storage_type=pg_config['instance']['storage_type'],
@@ -92,7 +93,7 @@ class PostgreSQLManager:
                 }
             )
             
-            response = self.pg_api.create_db_instance(request)
+            response = self.client_api.create_db_instance(request)
             print("PostgreSQL实例创建成功: %s" % response)
             return response.instance_id
             
@@ -108,10 +109,10 @@ class PostgreSQLManager:
     def get_private_endpoint(self, instance_id):
         try:
             # 查询实例详情获取内网访问信息
-            describe_request = volcenginesdkrdspostgresql.DescribeDBInstanceDetailRequest(
+            describe_request = self.api.DescribeDBInstanceDetailRequest(
                 instance_id=instance_id
             )
-            describe_response = self.pg_api.describe_db_instance_detail(describe_request)
+            describe_response = self.client_api.describe_db_instance_detail(describe_request)
             
             # 遍历endpoints查找内网连接点
             if hasattr(describe_response, 'endpoints'):
@@ -135,10 +136,10 @@ class PostgreSQLManager:
     def create_public_endpoint(self, instance_id, eip_id):
         try:
             # 先检查是否已存在公网访问端点
-            describe_request = volcenginesdkrdspostgresql.DescribeDBInstanceDetailRequest(
+            describe_request = self.api.DescribeDBInstanceDetailRequest(
                 instance_id=instance_id
             )
-            describe_response = self.pg_api.describe_db_instance_detail(describe_request)
+            describe_response = self.client_api.describe_db_instance_detail(describe_request)
             
             # 检查实例的 endpoints 中是否已有公网连接点
             if hasattr(describe_response, 'endpoints'):
@@ -152,22 +153,22 @@ class PostgreSQLManager:
                             return address.domain, address.port
 
             # 如果不存在，则创建新的公网访问端点
-            request = volcenginesdkrdspostgresql.CreateDBEndpointPublicAddressRequest(
+            request = self.api.CreateDBEndpointPublicAddressRequest(
                 instance_id=instance_id,
                 eip_id=eip_id
             )
             
-            response = self.pg_api.create_db_endpoint_public_address(request)
+            response = self.client_api.create_db_endpoint_public_address(request)
             print("正在创建公网访问地址...")
             
             # 等待公网访问端点创建完成
             max_retries = 10
             retry_interval = 30
             for retry in range(max_retries):
-                describe_request = volcenginesdkrdspostgresql.DescribeDBInstanceDetailRequest(
+                describe_request = self.api.DescribeDBInstanceDetailRequest(
                     instance_id=instance_id
                 )
-                describe_response = self.pg_api.describe_db_instance_detail(describe_request)
+                describe_response = self.client_api.describe_db_instance_detail(describe_request)
                 
                 if hasattr(describe_response, 'endpoints'):
                     for endpoint in describe_response.endpoints:
@@ -205,8 +206,8 @@ class PostgreSQLManager:
         start_time = time.time()
         while True:
             try:
-                request = volcenginesdkrdspostgresql.DescribeDBInstancesRequest()
-                response = self.pg_api.describe_db_instances(request)
+                request = self.api.DescribeDBInstancesRequest()
+                response = self.client_api.describe_db_instances(request)
                 
                 for instance in response.instances:
                     if instance.instance_id == instance_id:
@@ -240,10 +241,10 @@ class PostgreSQLManager:
     def create_database(self, instance_id):
         try:
             # 先获取已存在的数据库列表
-            describe_request = volcenginesdkrdspostgresql.DescribeDatabasesRequest(
+            describe_request = self.api.DescribeDatabasesRequest(
                 instance_id=instance_id
             )
-            describe_response = self.pg_api.describe_databases(describe_request)
+            describe_response = self.client_api.describe_databases(describe_request)
             existing_databases = []
             
             # 添加空值检查
@@ -260,12 +261,12 @@ class PostgreSQLManager:
                     continue
                 
                 # 创建数据库
-                request = volcenginesdkrdspostgresql.CreateDatabaseRequest(
+                request = self.api.CreateDatabaseRequest(
                     instance_id=instance_id,
                     db_name=db_config['name'],
                     owner=db_config['owner']
                 )
-                self.pg_api.create_database(request)
+                self.client_api.create_database(request)
                 logger.info(f"数据库 {db_config['name']} 创建成功")
             
             return True
@@ -279,8 +280,8 @@ class PostgreSQLManager:
             max_retries = 10
             retry_interval = 30
             for retry in range(max_retries):
-                describe_request = volcenginesdkrdspostgresql.DescribeDBInstancesRequest()
-                describe_response = self.pg_api.describe_db_instances(describe_request)
+                describe_request = self.api.DescribeDBInstancesRequest()
+                describe_response = self.client_api.describe_db_instances(describe_request)
                 
                 instance_ready = False
                 for instance in describe_response.instances:
@@ -304,10 +305,10 @@ class PostgreSQLManager:
                     return False
 
             # 检查并创建所有账号
-            list_request = volcenginesdkrdspostgresql.DescribeDBAccountsRequest(
+            list_request = self.api.DescribeDBAccountsRequest(
                 instance_id=instance_id
             )
-            list_response = self.pg_api.describe_db_accounts(list_request)
+            list_response = self.client_api.describe_db_accounts(list_request)
             
             # 遍历配置中的所有账号
             for account_config in self.current_config['accounts']:
@@ -323,14 +324,14 @@ class PostgreSQLManager:
                 
                 if not account_exists:
                     # 创建新账号
-                    request = volcenginesdkrdspostgresql.CreateDBAccountRequest(
+                    request = self.api.CreateDBAccountRequest(
                         instance_id=instance_id,
                         account_name=account_config['username'],
                         account_password=account_config['password'],
                         account_type=account_config['account_type']
                     )
                     
-                    self.pg_api.create_db_account(request)
+                    self.client_api.create_db_account(request)
                     print(f"账号 {account_config['username']} 创建成功")
             
             return True
@@ -347,11 +348,11 @@ class PostgreSQLManager:
                 print("Schema列表:")
                 
                 # 获取当前数据库的Schema列表
-                describe_request = volcenginesdkrdspostgresql.DescribeSchemasRequest(
+                describe_request = self.api.DescribeSchemasRequest(
                     instance_id=instance_id,
                     db_name=db_config['name']
                 )
-                describe_response = self.pg_api.describe_schemas(describe_request)
+                describe_response = self.client_api.describe_schemas(describe_request)
                 
                 # 获取现有的Schema列表
                 existing_schemas = []
@@ -364,13 +365,13 @@ class PostgreSQLManager:
                 for schema_config in db_config['schemas']:
                     if schema_config['name'] not in existing_schemas:
                         # 创建新Schema
-                        request = volcenginesdkrdspostgresql.CreateSchemaRequest(
+                        request = self.api.CreateSchemaRequest(
                             instance_id=instance_id,
                             db_name=db_config['name'],
                             schema_name=schema_config['name'],
                             owner=schema_config['owner']
                         )
-                        self.pg_api.create_schema(request)
+                        self.client_api.create_schema(request)
                         print(f"  - {schema_config['name']} (新创建)")
 
             return True
@@ -380,7 +381,7 @@ class PostgreSQLManager:
 
     def modify_backup_policy(self, instance_id):
         try:
-            request = volcenginesdkrdspostgresql.ModifyBackupPolicyRequest(
+            request = self.api.ModifyBackupPolicyRequest(
                 instance_id=instance_id,
                 backup_retention_period=self.current_config['backup']['retention_period'],
                 full_backup_period=self.current_config['backup']['full_backup_period'],
@@ -388,7 +389,7 @@ class PostgreSQLManager:
                 increment_backup_frequency=self.current_config['backup']['increment_backup_frequency']
             )
             
-            self.pg_api.modify_backup_policy(request)
+            self.client_api.modify_backup_policy(request)
             logger.info("备份策略修改成功")
             return True
             

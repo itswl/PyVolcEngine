@@ -34,3 +34,7 @@ upload.log
 .DS_Store
 Thumbs.db
 __pycache__/
+
+api_config.py
+logs/
+volcengine-python-sdk-*/

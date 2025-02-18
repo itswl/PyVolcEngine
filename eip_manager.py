@@ -69,13 +69,12 @@ class EIPManager:
                 description=eip_config['description'],
                 project_name=eip_config['project_name'],
                 period_unit=period_unit,
-                renew_type=eip_config['renew_type'],
                 period=eip_config['period']
             )
             
             response = self.vpc_api.allocate_eip_address(request)
             logger.info(f"EIP申请成功: {response}")
-            return response.allocation_id, response.eip_address
+            return response.allocation_id, response.eip_address, eip.name
             
         except ApiException as e:
             logger.error(f"申请EIP时发生异常: {e}")
