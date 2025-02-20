@@ -28,8 +28,8 @@ pg_configs = [
             "storage_space": 100,  # 存储空间大小，单位GB，范围：20-3000
             "node_spec": "rds.postgres.1c2g",  # 实例规格，格式：rds.postgres.[CPU核数]c[内存大小]g
             "zone_id": "cn-shanghai-a",  # 可用区ID，例如：cn-shanghai-a
-            "vpc_id": "",  # VPC ID，为空时将创建新的VPC
-            "subnet_id": "",  # 子网ID，为空时将创建新的子网
+            # "vpc_id": None,  # VPC ID，为空时将创建新的VPC
+            # "subnet_id": None,  # 子网ID，为空时将创建新的子网
             # 实例专用VPC配置
             "vpc": {
                 "name": "pg-instance-1-vpc",  # VPC名称
@@ -148,8 +148,8 @@ pg_configs = [
             "storage_space": 200,  # 存储空间，生产环境建议预留足够空间
             "node_spec": "rds.postgres.2c4g",  # 实例规格，生产环境建议使用更高配置
             "zone_id": "cn-shanghai-b",  # 可用区ID
-            "vpc_id": "",
-            "subnet_id": "",
+            #"vpc_id": "",
+            #"subnet_id": "",
             # 生产环境VPC配置
             "vpc": {
                 "name": "pg-instance-2-vpc",

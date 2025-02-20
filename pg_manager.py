@@ -8,9 +8,8 @@ import logging
 from configs.api_config import api_config, timeout_config
 from configs.pg_config import pg_configs
 from configs.network_config import network_config
-from whitelist_manager import WhitelistManager
 from vpc_manager import VPCManager
-from whitelist_binding_manager import WhitelistBindingManager
+from pg_whitelist_manager import PostgreSQLWhitelistManager
 
 
 import os
@@ -38,6 +37,7 @@ class PostgreSQLManager:
         self.vpc_api = volcenginesdkvpc.VPCApi()
         self.vpc_manager = VPCManager()
         self.current_config = None  # 当前正在处理的配置
+        self.whitelist_manager = PostgreSQLWhitelistManager()
 
     def _init_client(self):
         configuration = volcenginesdkcore.Configuration()
@@ -227,16 +227,17 @@ class PostgreSQLManager:
                 print(f"检查实例状态时发生错误: {e}")
                 return False
 
+
     def create_whitelist(self, instance_id):
-        try:
+        # try:
             # 使用白名单绑定管理器
-            binding_manager = WhitelistBindingManager()
-            success = binding_manager.bind_whitelists_to_instance(instance_id)
+            success = self.whitelist_manager.bind_whitelists_to_instance(instance_id)
+            print(success)
             return success
             
-        except Exception as e:
-            print(f"创建或绑定白名单时发生异常: {e}")
-            return False
+        # except Exception as e:
+        #     print(f"创建或绑定白名单时发生异常: {e}")
+        #     return False
 
     def create_database(self, instance_id):
         try:
