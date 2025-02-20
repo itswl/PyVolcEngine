@@ -5,6 +5,7 @@ from __future__ import absolute_import
 from volcenginesdkcore.configuration import Configuration
 from volcenginesdkcore.rest import ApiException
 from configs.api_config import api_config
+from configs.whitelist_config import whitelist_config
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ class WhitelistBaseManager:
     - 白名单创建
     - 白名单绑定
     - 白名单查询
+    - 白名单配置加载
     
     子类需要实现具体的API调用方法。
     """
@@ -24,6 +26,16 @@ class WhitelistBaseManager:
     def __init__(self):
         self._init_client()
         self.api = None  # 子类需要设置具体的API实例
+        self.client_api = None 
+        self.whitelist_config = whitelist_config  # 从配置文件加载白名单配置
+
+    def get_whitelist_config(self):
+        """获取白名单配置
+
+        :return: dict 白名单配置信息
+        """
+        return self.whitelist_config
+
         
     def _init_client(self):
         """初始化API客户端配置"""
@@ -61,7 +73,7 @@ class WhitelistBaseManager:
                 allow_list_name=whitelist_name,
                 allow_list=','.join(whitelist_config.get('ip_list', [])) if isinstance(whitelist_config, dict) else ''
             )
-            create_response = self.api.create_allow_list(create_request)
+            create_response = self.client_api.create_allow_list(create_request)
             whitelist_id = create_response.allow_list_id
             
             logger.info(f"白名单 {whitelist_name} 创建成功")
@@ -76,35 +88,62 @@ class WhitelistBaseManager:
         except ApiException as e:
             return self._handle_api_exception(e, "创建白名单")
 
-    def bind_whitelist_to_instance(self, instance_id, whitelist_id):
-        """将白名单绑定到实例
-
-        :param instance_id: 实例ID
-        :param whitelist_id: 白名单ID
-        :return: bool 绑定是否成功
+    def bind_whitelists_to_instance(self, instance_id):
+        """
+        将白名单绑定到指定的实例
+        :param instance_id: 数据库实例ID
+        :return: bool 是否成功
         """
         try:
-            # 等待实例就绪
+            # 获取实例当前的白名单列表
+            current_whitelists = self.get_instance_whitelists(instance_id)
+            if not current_whitelists:
+                logger.info(f"实例 {instance_id} 当前没有绑定的白名单")
+            else:
+                logger.info(f"实例 {instance_id} 当前已绑定的白名单: {', '.join(current_whitelists)}")
+
+            # 等待实例状态就绪
             if not self.wait_for_instance_ready(instance_id):
+                logger.error("等待实例就绪超时，无法绑定白名单")
                 return False
 
-            # 检查白名单是否已绑定
-            current_whitelists = self.get_instance_whitelists(instance_id)
-            if whitelist_id in current_whitelists:
-                logger.info(f"白名单 {whitelist_id} 已绑定到实例 {instance_id}")
+            # 创建并绑定白名单
+            try:
+                # 从配置文件创建所有白名单
+                whitelist_ids = []
+                for whitelist_item in self.whitelist_config['whitelists']:
+                    success, whitelist_id = self.create_whitelist(whitelist_item)
+                    if success and whitelist_id:
+                        # 检查白名单是否已经绑定到实例
+                        if whitelist_id in current_whitelists:
+                            logger.info(f"白名单 {whitelist_item['name']} (ID: {whitelist_id}) 已绑定到实例 {instance_id}，跳过绑定")
+                            continue
+                        whitelist_ids.append(whitelist_id)
+                    else:
+                        logger.error(f"创建白名单 {whitelist_item['name']} 失败")
+                        return False
+                
+                if not whitelist_ids:
+                    logger.info("所有白名单已经绑定到实例，无需重复绑定")
+                    return True
+
+                # 只绑定未绑定的白名单到实例
+                associate_request = self.api.AssociateAllowListRequest(
+                    allow_list_ids=whitelist_ids,
+                    instance_ids=[instance_id]
+                )
+                self.client_api.associate_allow_list(associate_request)
+                logger.info(f"成功将 {len(whitelist_ids)} 个新白名单绑定到实例 {instance_id}")
                 return True
 
-            # 绑定白名单
-            associate_request = self.api.AssociateAllowListRequest(
-                allow_list_ids=[whitelist_id],
-                instance_ids=[instance_id]
-            )
-            self.client_api.associate_allow_list(associate_request)
-            logger.info(f"白名单 {whitelist_id} 已成功绑定到实例 {instance_id}")
-            return True
-        except ApiException as e:
-            return self._handle_api_exception(e, f"绑定白名单到实例")
+            except ApiException as e:
+                logger.error(f"绑定白名单时发生异常: {e}")
+                return False
 
+        except ApiException as e:
+            logger.error(f"创建或绑定白名单时发生异常: {e}")
+            return False
+            
     def get_instance_whitelists(self, instance_id):
         """获取实例的白名单列表
 
@@ -155,11 +194,13 @@ class WhitelistBaseManager:
                 
                 for instance in status_response.instances:
                     if instance.instance_id == instance_id:
-                        if instance.status == "Running":
+                        # 兼容不同API返回的状态字段名称
+                        instance_status = getattr(instance, 'status', None) or getattr(instance, 'instance_status', None)
+                        if instance_status == "Running":
                             logger.info(f"实例 {instance_id} 状态正常")
                             return True
                         else:
-                            logger.info(f"实例 {instance_id} 当前状态: {instance.status}，等待 {interval} 秒后重试")
+                            logger.info(f"实例 {instance_id} 当前状态: {instance_status}，等待 {interval} 秒后重试")
                             time.sleep(interval)
                             break
                 else:
@@ -172,7 +213,6 @@ class WhitelistBaseManager:
                 logger.warning(f"检查实例状态时发生异常: {e}，重试第 {retry_count + 1} 次")
                 retry_count += 1
                 time.sleep(interval)
-
         logger.error(f"实例 {instance_id} 状态检查失败，已达到最大重试次数")
         return False
 

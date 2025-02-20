@@ -11,4 +11,4 @@ class PostgreSQLWhitelistManager(WhitelistBaseManager):
     def __init__(self):
         super().__init__()
         self.api = volcenginesdkrdspostgresql
-        self.client_api = self.volcenginesdkrdspostgresql.RDSPOSTGRESQLApi()
+        self.client_api = self.api.RDSPOSTGRESQLApi()
