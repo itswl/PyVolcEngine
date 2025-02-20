@@ -225,3 +225,79 @@ class WhitelistBaseManager:
         """
         logger.error(f"{operation}时发生异常: {e}")
         return False, None
+
+    def unbind_whitelists_from_instance(self, instance_id, whitelist_ids=None):
+        """
+        从指定实例解绑白名单
+
+        :param instance_id: 数据库实例ID
+        :param whitelist_ids: 要解绑的白名单ID列表，如果为None则解绑所有白名单
+        :return: bool 是否成功
+        """
+        try:
+            # 获取实例当前的白名单列表
+            current_whitelists = self.get_instance_whitelists(instance_id)
+            if not current_whitelists:
+                logger.info(f"实例 {instance_id} 当前没有绑定的白名单，无需解绑")
+                return True
+
+            # 如果没有指定要解绑的白名单ID，则解绑所有白名单
+            if whitelist_ids is None:
+                whitelist_ids = current_whitelists
+            else:
+                # 验证指定的白名单是否已绑定到实例
+                for whitelist_id in whitelist_ids:
+                    if whitelist_id not in current_whitelists:
+                        logger.warning(f"白名单 {whitelist_id} 未绑定到实例 {instance_id}，跳过解绑")
+                        whitelist_ids.remove(whitelist_id)
+
+            if not whitelist_ids:
+                logger.info("没有需要解绑的白名单")
+                return True
+
+            # 等待实例状态就绪
+            if not self.wait_for_instance_ready(instance_id):
+                logger.error("等待实例就绪超时，无法解绑白名单")
+                return False
+
+            try:
+                # 解绑白名单
+                disassociate_request = self.api.DisassociateAllowListRequest(
+                    allow_list_ids=whitelist_ids,
+                    instance_ids=[instance_id]
+                )
+                self.client_api.disassociate_allow_list(disassociate_request)
+                logger.info(f"成功从实例 {instance_id} 解绑 {len(whitelist_ids)} 个白名单")
+                return True
+
+            except ApiException as e:
+                logger.error(f"解绑白名单时发生异常: {e}")
+                return False
+
+        except ApiException as e:
+            logger.error(f"解绑白名单时发生异常: {e}")
+            return False
+
+import volcenginesdkredis
+class RedisWhitelistManager(WhitelistBaseManager):
+    """Redis服务的白名单管理类
+
+    继承自WhitelistBaseManager，实现Redis服务特定的白名单操作。
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.api = volcenginesdkredis
+        self.client_api = self.api.REDISApi()
+
+
+import volcenginesdkrdspostgresql
+class PostgreSQLWhitelistManager(WhitelistBaseManager):
+    """PostgreSQL白名单管理类
+    这个类继承自WhitelistBaseManager，提供了PostgreSQL数据库的白名单管理功能。
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.api = volcenginesdkrdspostgresql
+        self.client_api = self.api.RDSPOSTGRESQLApi()

@@ -7,7 +7,7 @@ import volcenginesdkvpc
 from configs.api_config import api_config
 from configs.redis_config import redis_configs
 from vpc_manager import VPCManager
-from redis_whitelist_manager import RedisWhitelistManager
+from whitelist_manager import RedisWhitelistManager
 
 
 # 配置日志
@@ -140,47 +140,15 @@ class RedisManager:
             print(f"创建或绑定白名单时发生异常: {e}")
             return False
 
-
-    # def create_whitelist1(self, instance_id):
-    #     try:
-    #         # 等待实例状态就绪
-    #         if not self.wait_for_instance_ready(instance_id):
-    #             logger.error("实例未就绪，无法创建白名单")
-    #             return False
-
-    #         # 使用RedisWhitelistManager创建并绑定所有白名单
-    #         success_count = 0
-    #         whitelist_ids = []
+    def delete_whitelist(self, instance_id):
+        try:
+            # 使用白名单绑定管理器
+            success = self.whitelist_manager.unbind_whitelists_from_instance(instance_id)
+            return success
             
-    #         # 遍历所有白名单配置
-    #         for whitelist_config in self.current_config['whitelists']:
-    #             # 创建白名单
-    #             success, whitelist_id = self.whitelist_manager.create_whitelist(whitelist_config)
-    #             if not success:
-    #                 logger.error(f"创建白名单 {whitelist_config.get('name', '未命名')} 失败")
-    #                 continue
-
-    #             # 绑定白名单到实例
-    #             if not self.whitelist_manager.bind_whitelist_to_instance(instance_id, whitelist_id):
-    #                 logger.error(f"绑定白名单 {whitelist_id} 到实例失败")
-    #                 continue
-
-    #             whitelist_ids.append(whitelist_id)
-    #             success_count += 1
-    #             logger.info(f"白名单 {whitelist_id} 创建并绑定成功")
-
-    #         # 检查是否所有白名单都处理成功
-    #         total_whitelists = len(self.current_config['whitelists'])
-    #         if success_count == total_whitelists:
-    #             logger.info(f"所有白名单创建并绑定成功，共 {success_count} 个白名单")
-    #             return True
-    #         else:
-    #             logger.error(f"部分白名单处理失败，成功 {success_count}/{total_whitelists}")
-    #             return False
-
-    #     except ApiException as e:
-    #         logger.error(f"创建或绑定白名单时发生异常: {e}")
-    #         return False
+        except Exception as e:
+            print(f"创建或绑定白名单时发生异常: {e}")
+            return False
 
 
     def allocate_eip(self):
@@ -417,6 +385,10 @@ def main():
         if not redis_manager.create_whitelist(instance_id):
             logger.error("创建白名单失败")
             continue
+
+        # if not redis_manager.delete_whitelist(instance_id):
+        #     logger.error("删除白名单失败")
+        #     continue
 
         # 7. 修改实例参数配置
         if not redis_manager.modify_instance_params(instance_id,param_name="disabled-commands",param_value="flushall,flushdb"):
