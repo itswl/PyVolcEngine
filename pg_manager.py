@@ -9,7 +9,7 @@ from configs.api_config import api_config, timeout_config
 from configs.pg_config import pg_configs
 from configs.network_config import network_config
 from vpc_manager import VPCManager
-from pg_whitelist_manager import PostgreSQLWhitelistManager
+from whitelist_manager import PostgreSQLWhitelistManager
 
 
 import os
