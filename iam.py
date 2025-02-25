@@ -17,12 +17,6 @@ from typing import Dict, List
 import volcenginesdkcore
 import volcenginesdkiam
 from volcenginesdkcore.rest import ApiException
-from volcenginesdkiam.models.create_group_request import CreateGroupRequest
-from volcenginesdkiam.models.create_user_request import CreateUserRequest
-from volcenginesdkiam.models.create_login_profile_request import CreateLoginProfileRequest
-from volcenginesdkiam.models.create_access_key_request import CreateAccessKeyRequest
-from volcenginesdkiam.models.add_user_to_group_request import AddUserToGroupRequest
-from volcenginesdkiam.models.attach_user_group_policy_request import AttachUserGroupPolicyRequest
 from configs.api_config import api_config
 from configs.iam_config import USER_CONFIG, TEAM_GROUPS, DEFAULT_PASSWORD, SECRET_DIR
 import time
@@ -64,7 +58,7 @@ class IAMManager:
             try:
                 # 先检查用户组是否已存在
                 try:
-                    list_groups_request = self.api.models.list_groups_request.ListGroupsRequest()
+                    list_groups_request = self.api.ListGroupsRequest()
                     list_groups_response = self.client_api.list_groups(list_groups_request)
                     group_exists = any(group.user_group_name == group_config["user_group_name"] 
                                      for group in list_groups_response.user_groups)
@@ -76,7 +70,7 @@ class IAMManager:
                     logger.warning(f"检查用户组存在性失败: {group_config['display_name']}, 错误: {str(e)}")
                 
                 # 创建用户组
-                create_group_request = CreateGroupRequest(
+                create_group_request = self.api.CreateGroupRequest(
                     user_group_name=group_config["user_group_name"],
                     display_name=group_config["display_name"],
                     description=group_config["description"]
@@ -105,9 +99,9 @@ class IAMManager:
             try:
                 # 先检查用户是否已存在
                 try:
-                    list_users_request = self.api.models.list_users_request.ListUsersRequest(limit=1000)
+                    list_users_request = self.api.ListUsersRequest(limit=1000)
                     list_users_response = self.client_api.list_users(list_users_request)
-                    
+
                     user_exists = any(user.user_name == user_info["user_name"]
                                     for user in list_users_response.user_metadata)
                     
@@ -118,7 +112,7 @@ class IAMManager:
                     logger.warning(f"检查用户存在性失败: {user_info['display_name']}, 错误: {str(e)}")
                 
                 # 创建用户
-                create_user_request = CreateUserRequest(
+                create_user_request = self.api.CreateUserRequest(
                     user_name=user_info["user_name"],
                     display_name=user_info["display_name"]
                 )
@@ -149,7 +143,7 @@ class IAMManager:
 
             # 先检查用户是否已有登录配置
             try:
-                get_login_profile_request = self.api.models.get_login_profile_request.GetLoginProfileRequest(
+                get_login_profile_request = self.api.GetLoginProfileRequest(
                     user_name=user_info["user_name"]
                 )
                 login_profile = self.client_api.get_login_profile(get_login_profile_request)
@@ -164,7 +158,7 @@ class IAMManager:
                 logger.info(f"用户 {user_info['display_name']} 没有登录配置，将创建新的登录配置")
                 
             password = user_info.get("password", DEFAULT_PASSWORD)
-            create_login_profile_request = CreateLoginProfileRequest(
+            create_login_profile_request = self.api.CreateLoginProfileRequest(
                 user_name=user_info["user_name"],
                 password=password,
                 login_allowed=True,
@@ -187,7 +181,7 @@ class IAMManager:
         try:
             # 先检查用户是否已有访问密钥
             try:
-                list_access_keys_request = self.api.models.list_access_keys_request.ListAccessKeysRequest(
+                list_access_keys_request = self.api.ListAccessKeysRequest(
                     user_name=user_info["user_name"]
                 )
                 list_access_keys_response = self.client_api.list_access_keys(list_access_keys_request)
@@ -198,7 +192,7 @@ class IAMManager:
             except Exception as e:
                 logger.warning(f"检查用户访问密钥失败: {user_info['display_name']}, 错误: {str(e)}")
             
-            create_access_key_request = CreateAccessKeyRequest()
+            create_access_key_request = self.api.CreateAccessKeyRequest()
             create_access_key_request.user_name = user_info["user_name"]
             
             response = self.client_api.create_access_key(create_access_key_request)
@@ -219,7 +213,7 @@ class IAMManager:
         for user_info in USER_CONFIG:
             for team_name in user_info["teams"]:
                 try:
-                    add_user_to_group_request = AddUserToGroupRequest(
+                    add_user_to_group_request = self.api.AddUserToGroupRequest(
                         user_name=user_info["user_name"],
                         user_group_name=TEAM_GROUPS[team_name]["user_group_name"]
                     )
@@ -229,47 +223,6 @@ class IAMManager:
                 except Exception as e:
                     logger.error(f"添加用户到用户组失败: {user_info['display_name']} -> {TEAM_GROUPS[team_name]['display_name']}, 错误: {str(e)}")
                     raise
-    
-    def attach_policies_to_groups(self) -> None:
-        """为用户组附加权限策略"""
-        for team_name, group_config in TEAM_GROUPS.items():
-            try:
-                # 获取用户组当前的策略列表
-                list_policies_request = self.api.models.list_attached_user_group_policies_request.ListAttachedUserGroupPoliciesRequest(
-                    user_group_name=group_config["user_group_name"]
-                )
-                current_policies = self.client_api.list_attached_user_group_policies(list_policies_request)
-                
-                for policy_name in group_config["policies"]:
-                    # 检查策略是否已经附加
-                    policy_exists = any(policy.policy_name == policy_name for policy in current_policies.attached_policy_metadata)
-                    if policy_exists:
-                        logger.info(f"策略已附加到用户组，跳过附加: {group_config['display_name']} -> {policy_name}")
-                        continue
-                        
-                    attach_policy_request = AttachUserGroupPolicyRequest(
-                        user_group_name=group_config["user_group_name"],
-                        policy_name=policy_name,
-                        policy_type="System"
-                    )
-                    
-                    self.client_api.attach_user_group_policy(attach_policy_request)
-                    logger.info(f"成功为用户组 {group_config['display_name']} 附加策略: {policy_name}")
-            except Exception as e:
-                logger.error(f"附加策略失败: {group_config['display_name']} -> {policy_name}, 错误: {str(e)}")
-                raise
-
-    def set_user_login_profile(self) -> None:
-        """为需要密码登录的用户设置登录配置"""
-        for user_info in USER_CONFIG:
-            if user_info["auth_type"] in ["password", "both"]:
-                self._create_login_profile(user_info)
-            
-    def set_user_access_key(self) -> None:
-        """为需要访问密钥的用户创建访问密钥"""
-        for user_info in USER_CONFIG:
-            if user_info["auth_type"] in ["access_key", "both"]:
-                self._create_access_key(user_info)
 
     def attach_policies_to_user(self) -> None:
         """为指定用户附加权限策略
@@ -278,10 +231,11 @@ class IAMManager:
             user_name: 用户名
             policy_names: 策略名称列表
             policy_type: 策略类型，默认为System（系统策略）
+            功能未实现，暂时不需要
         """
         try:
             # 获取用户当前的策略列表
-            list_policies_request = self.api.models.list_attached_user_policies_request.ListAttachedUserPoliciesRequest(
+            list_policies_request = self.api.ListAttachedUserPoliciesRequest(
                 user_name=user_name
             )
             current_policies = self.client_api.list_attached_user_policies(list_policies_request)
@@ -293,7 +247,7 @@ class IAMManager:
                     logger.info(f"策略已附加到用户，跳过附加: {user_name} -> {policy_name}")
                     continue
                     
-                attach_policy_request = self.api.models.attach_user_policy_request.AttachUserPolicyRequest(
+                attach_policy_request = self.api.AttachUserPolicyRequest(
                     user_name=user_name,
                     policy_name=policy_name,
                     policy_type=policy_type
@@ -304,6 +258,35 @@ class IAMManager:
         except Exception as e:
             logger.error(f"附加策略失败: {user_name} -> {policy_name}, 错误: {str(e)}")
             raise
+
+    def attach_policies_to_groups(self) -> None:
+        """为用户组附加权限策略"""
+        for team_name, group_config in TEAM_GROUPS.items():
+            try:
+                # 获取用户组当前的策略列表
+                list_policies_request = self.api.ListAttachedUserGroupPoliciesRequest(
+                    user_group_name=group_config["user_group_name"]
+                )
+                current_policies = self.client_api.list_attached_user_group_policies(list_policies_request)
+                
+                for policy_name in group_config["policies"]:
+                    # 检查策略是否已经附加
+                    policy_exists = any(policy.policy_name == policy_name for policy in current_policies.attached_policy_metadata)
+                    if policy_exists:
+                        logger.info(f"策略已附加到用户组，跳过附加: {group_config['display_name']} -> {policy_name}")
+                        continue
+                        
+                    attach_policy_request = self.api.AttachUserGroupPolicyRequest(
+                        user_group_name=group_config["user_group_name"],
+                        policy_name=policy_name,
+                        policy_type="System"
+                    )
+                    
+                    self.client_api.attach_user_group_policy(attach_policy_request)
+                    logger.info(f"成功为用户组 {group_config['display_name']} 附加策略: {policy_name}")
+            except Exception as e:
+                logger.error(f"附加策略失败: {group_config['display_name']} -> {policy_name}, 错误: {str(e)}")
+                raise
 
     def set_user_login_profile(self) -> None:
         """为需要密码登录的用户设置登录配置"""
