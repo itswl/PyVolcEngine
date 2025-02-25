@@ -3,6 +3,7 @@ import resource_cleaner
 import logging
 import os
 
+# 可能需要多次执行
 # 定义需要清理的PostgreSQL实例配置
 pg_resources = {
     "instances": [
@@ -25,8 +26,8 @@ redis_resources = {
             "eip_address": ""
         },
         {
-            "instance_id": "redis-shzl2ofx6frlzus3a",
-            "eip_address": "14.103.145.36"
+            "instance_id": "redis-shzls6puukagurhnz",
+            "eip_address": "14.103.151.19"
         }
     ]
 }
