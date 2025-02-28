@@ -1,27 +1,27 @@
 # coding: utf-8
 
-# MongoDB实例配置
-mongodb_configs = [
+# MongoDB实例优化配置
+instance_configs = [
     {
         "instance": {
-            "name": "mongodb-test",
-            "engine_version": "6.0",
+            "name": "optimized-mongo",
+            "engine_version": "MongoDB_6_0",
             "db_engine": "MongoDB",
             "storage_type": "LocalSSD",
-            "storage_space_gb": 20,
-            "node_spec": "mongo.2c4g",
-            "zone_id": "cn-beijing-a",
+            "storage_space_gb": 20,  # 参考现有实例配置
+            "zone_id": "cn-shanghai-a,cn-shanghai-b,cn-shanghai-c",  # 多可用区部署
             "instance_type": "ShardedCluster",
             "period": 1,
             "period_unit": "Month",
             "project_name": "default",
-            "mongos_node_number": 2,
-            "mongos_node_spec": "mongo.mongos.2c4g",
-            "node_number": 2,
-            "node_spec": "mongo.mongos.2c4g",
-            "shard_number": 2,
+            "mongos_node_number": 2,  # 参考现有实例配置
+            "mongos_node_spec": "mongo.mongos.1c2g",  # 参考现有实例配置
+            "node_number": 3,  # 每个分片3个节点（1主2从，其中1个Hidden）
+            "node_spec": "mongo.shard.1c2g",  # 参考现有实例配置
+            "shard_number": 2,  # 参考现有实例配置的2个分片
             "super_account_name": "root",
-            "super_account_password": "root",
+            "super_account_password": "Test@123456",
+            "SpecType": "GENERAL",
             "vpc": {
                 "name": "mongodb-vpc",
                 "cidr_block": "172.16.0.0/16",
@@ -36,7 +36,7 @@ mongodb_configs = [
             "subnet": {
                 "name": "mongodb-subnet",
                 "cidr_block": "172.16.1.0/24",
-                "zone_id": "cn-beijing-a",
+                "zone_id": "cn-shanghai-a",
                 "description": "MongoDB Subnet",
                 "tags": [
                     {
@@ -46,10 +46,10 @@ mongodb_configs = [
                 ]
             },
             "charge_info": {
-                "charge_type": "PostPaid",
+                "charge_type": "Prepaid",  # 参考现有实例的计费类型
                 "period_unit": "Month",
                 "period": 1,
-                "auto_renew": False
+                "auto_renew": True  # 参考现有实例的自动续费设置
             }
         },
         "databases": [
@@ -58,19 +58,6 @@ mongodb_configs = [
                 "schemas": [
                     {
                         "name": "test_schema_1",
-                        "owner": "admin"
-                    },
-                    {
-                        "name": "test_schema_2",
-                        "owner": "admin"
-                    }
-                ]
-            },
-            {
-                "name": "devdb",
-                "schemas": [
-                    {
-                        "name": "dev_schema",
                         "owner": "admin"
                     }
                 ]
@@ -81,11 +68,6 @@ mongodb_configs = [
                 "username": "admin",
                 "password": "Admin123456",
                 "account_type": "Super"
-            },
-            {
-                "username": "developer",
-                "password": "Dev123456",
-                "account_type": "Normal"
             }
         ],
         "backup": {
@@ -94,18 +76,6 @@ mongodb_configs = [
             "full_backup_time": "03:00-04:00",
             "increment_backup_frequency": "Every_6_Hours"
         },
-        "eip": {
-            "name": "mongodb-eip",
-            "description": "MongoDB EIP",
-            "bandwidth": 5,
-            "isp": "BGP",
-            "billing_type": "PostPaidByBandwidth",
-            "tags": [
-                {
-                    "key": "project",
-                    "value": "mongodb"
-                }
-            ]
-        }
+        "eip": "test-mongodb-eip"
     }
 ]

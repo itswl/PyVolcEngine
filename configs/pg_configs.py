@@ -18,7 +18,7 @@ from os import environ
 
 # PostgreSQL实例配置列表
 # 支持配置多个实例，每个实例可以有不同的规格和配置
-pg_configs = [
+instance_configs = [
     {
         # 测试环境实例配置
         "instance": {

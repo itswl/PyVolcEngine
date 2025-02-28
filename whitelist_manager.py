@@ -106,7 +106,6 @@ class WhitelistBaseManager:
             if not self.wait_for_instance_ready(instance_id):
                 logger.error("等待实例就绪超时，无法绑定白名单")
                 return False
-
             # 创建并绑定白名单
             try:
                 # 从配置文件创建所有白名单
@@ -180,7 +179,6 @@ class WhitelistBaseManager:
         import time
         start_time = time.time()
         retry_count = 0
-
         while retry_count < max_retries:
             try:
                 # 检查是否超时
@@ -192,7 +190,14 @@ class WhitelistBaseManager:
                 status_request = self.api.DescribeDBInstancesRequest()
                 status_response = self.client_api.describe_db_instances(status_request)
                 
-                for instance in status_response.instances:
+                # 获取实例列表，兼容不同的返回字段名
+                instances = []
+                if hasattr(status_response, 'instances'):
+                    instances = status_response.instances
+                elif hasattr(status_response, 'db_instances'):
+                    instances = status_response.db_instances
+                
+                for instance in instances:
                     if instance.instance_id == instance_id:
                         # 兼容不同API返回的状态字段名称
                         instance_status = getattr(instance, 'status', None) or getattr(instance, 'instance_status', None)
@@ -312,3 +317,70 @@ class MongoDBWhitelistManager(WhitelistBaseManager):
         super().__init__()
         self.api = volcenginesdkmongodb
         self.client_api = self.api.MONGODBApi()
+
+import volcenginesdkkafka
+class KafkaWhitelistManager(WhitelistBaseManager):
+    """Kafka白名单管理类
+    这个类继承自WhitelistBaseManager，提供了Kafka服务的白名单管理功能。
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.api = volcenginesdkkafka
+        self.client_api = self.api.KAFKAApi()
+
+    def bind_whitelists_to_instance(self, instance_id):
+        """
+        将白名单绑定到指定的实例
+        :param instance_id: 数据库实例ID
+        :return: bool 是否成功
+        """
+        try:
+            # 获取实例当前的白名单列表
+            current_whitelists = self.get_instance_whitelists(instance_id)
+            if not current_whitelists:
+                logger.info(f"实例 {instance_id} 当前没有绑定的白名单")
+            else:
+                logger.info(f"实例 {instance_id} 当前已绑定的白名单: {', '.join(current_whitelists)}")
+
+            # # 等待实例状态就绪
+            # if not self.wait_for_instance_ready(instance_id):
+            #     logger.error("等待实例就绪超时，无法绑定白名单")
+            #     return False
+            # # 创建并绑定白名单
+            try:
+                # 从配置文件创建所有白名单
+                whitelist_ids = []
+                for whitelist_item in self.whitelist_config['whitelists']:
+                    success, whitelist_id = self.create_whitelist(whitelist_item)
+                    if success and whitelist_id:
+                        # 检查白名单是否已经绑定到实例
+                        if whitelist_id in current_whitelists:
+                            logger.info(f"白名单 {whitelist_item['name']} (ID: {whitelist_id}) 已绑定到实例 {instance_id}，跳过绑定")
+                            continue
+                        whitelist_ids.append(whitelist_id)
+                    else:
+                        logger.error(f"创建白名单 {whitelist_item['name']} 失败")
+                        return False
+                
+                if not whitelist_ids:
+                    logger.info("所有白名单已经绑定到实例，无需重复绑定")
+                    return True
+
+                # 只绑定未绑定的白名单到实例
+                associate_request = self.api.AssociateAllowListRequest(
+                    allow_list_ids=whitelist_ids,
+                    instance_ids=[instance_id]
+                )
+                self.client_api.associate_allow_list(associate_request)
+                logger.info(f"成功将 {len(whitelist_ids)} 个新白名单绑定到实例 {instance_id}")
+                return True
+
+            except ApiException as e:
+                logger.error(f"绑定白名单时发生异常: {e}")
+                return False
+
+        except ApiException as e:
+            logger.error(f"创建或绑定白名单时发生异常: {e}")
+            return False
+   

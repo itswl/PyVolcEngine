@@ -6,7 +6,7 @@ from volcenginesdkcore.rest import ApiException
 import time
 import logging
 from configs.api_config import api_config, timeout_config
-from configs.pg_config import pg_configs
+from configs.pg_configs import instance_configs
 from configs.network_config import network_config
 from vpc_manager import VPCManager
 from whitelist_manager import PostgreSQLWhitelistManager
@@ -24,7 +24,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-file_handler = logging.FileHandler(os.path.join(log_dir, 'pg_manager.log'))
+file_handler = logging.FileHandler(os.path.join(log_dir, 'instance_manager.log'))
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 logger.addHandler(file_handler)
@@ -47,8 +47,8 @@ class PostgreSQLManager:
         configuration.client_side_validation = True
         volcenginesdkcore.Configuration.set_default(configuration)
 
-    def create_pg_instance(self, pg_config, vpc_id=None, subnet_id=None):
-        self.current_config = pg_config  # 设置当前配置
+    def create_instance(self, instance_config, vpc_id=None, subnet_id=None):
+        self.current_config = instance_config  # 设置当前配置
         try:
             # 先列出所有实例
             list_request = self.api.DescribeDBInstancesRequest()
@@ -56,7 +56,7 @@ class PostgreSQLManager:
             
             # 检查是否已存在名为配置中指定的实例
             for instance in list_response.instances:
-                if instance.instance_name == pg_config['instance']['name']:
+                if instance.instance_name == instance_config['instance']['name']:
                     print("实例已存在，实例ID: %s" % instance.instance_id)
                     return instance.instance_id
 
@@ -67,29 +67,29 @@ class PostgreSQLManager:
 
             # 如果不存在，则创建新实例
             request = self.api.CreateDBInstanceRequest(
-                instance_name=pg_config['instance']['name'],
-                db_engine_version=pg_config['instance']['engine_version'],
-                storage_type=pg_config['instance']['storage_type'],
-                storage_space=pg_config['instance']['storage_space'],
+                instance_name=instance_config['instance']['name'],
+                db_engine_version=instance_config['instance']['engine_version'],
+                storage_type=instance_config['instance']['storage_type'],
+                storage_space=instance_config['instance']['storage_space'],
                 vpc_id=vpc_id,
                 subnet_id=subnet_id,
                 node_info=[
                     {
                         "NodeType": "Primary",
-                        "NodeSpec": pg_config['instance']['node_spec'],
-                        "ZoneId": pg_config['instance']['zone_id']
+                        "NodeSpec": instance_config['instance']['node_spec'],
+                        "ZoneId": instance_config['instance']['zone_id']
                     },
                     {
                         "NodeType": "Secondary",
-                        "NodeSpec": pg_config['instance']['node_spec'],
-                        "ZoneId": pg_config['instance']['zone_id']
+                        "NodeSpec": instance_config['instance']['node_spec'],
+                        "ZoneId": instance_config['instance']['zone_id']
                     }
                 ],
                 charge_info={                       
-                    "ChargeType": pg_config['instance']['charge_info']['charge_type'],
-                    "PeriodUnit": pg_config['instance']['charge_info']['period_unit'],
-                    "Period": pg_config['instance']['charge_info']['period'],
-                    "AutoRenew": pg_config['instance']['charge_info']['auto_renew']
+                    "ChargeType": instance_config['instance']['charge_info']['charge_type'],
+                    "PeriodUnit": instance_config['instance']['charge_info']['period_unit'],
+                    "Period": instance_config['instance']['charge_info']['period'],
+                    "AutoRenew": instance_config['instance']['charge_info']['auto_renew']
                 }
             )
             
@@ -229,15 +229,15 @@ class PostgreSQLManager:
 
 
     def create_whitelist(self, instance_id):
-        # try:
+        try:
             # 使用白名单绑定管理器
             success = self.whitelist_manager.bind_whitelists_to_instance(instance_id)
             print(success)
             return success
             
-        # except Exception as e:
-        #     print(f"创建或绑定白名单时发生异常: {e}")
-        #     return False
+        except Exception as e:
+            print(f"创建或绑定白名单时发生异常: {e}")
+            return False
 
     def create_database(self, instance_id):
         try:
@@ -399,27 +399,27 @@ class PostgreSQLManager:
             return False
 
 def main():
-    pg_manager = PostgreSQLManager()
+    instance_manager = PostgreSQLManager()
     vpc_manager = VPCManager()
     subnet_id = None  # 初始化subnet_id变量
 
     # 遍历所有PostgreSQL实例配置
-    for pg_config in pg_configs:
-        logger.info(f"\n开始创建实例: {pg_config['instance']['name']}")
+    for instance_config in instance_configs:
+        logger.info(f"\n开始创建实例: {instance_config['instance']['name']}")
 
         # 1. 检查配置中是否已指定VPC和子网
-        if 'vpc_id' in pg_config['instance'] and 'subnet_id' in pg_config['instance']:
-            vpc_id = pg_config['instance']['vpc_id']
-            subnet_id = pg_config['instance']['subnet_id']
+        if 'vpc_id' in instance_config['instance'] and 'subnet_id' in instance_config['instance']:
+            vpc_id = instance_config['instance']['vpc_id']
+            subnet_id = instance_config['instance']['subnet_id']
             logger.info(f"使用配置中指定的VPC ID: {vpc_id} 和子网 ID: {subnet_id}")
             instance_subnet_id = subnet_id
         else:
             # 创建VPC
             vpc_id = vpc_manager.create_vpc(
-                vpc_name=pg_config['instance']['vpc']['name'],
-                cidr_block=pg_config['instance']['vpc']['cidr_block'],
-                description=pg_config['instance']['vpc']['description'],
-                tags=pg_config['instance']['vpc']['tags']
+                vpc_name=instance_config['instance']['vpc']['name'],
+                cidr_block=instance_config['instance']['vpc']['cidr_block'],
+                description=instance_config['instance']['vpc']['description'],
+                tags=instance_config['instance']['vpc']['tags']
             )
             if not vpc_id:
                 logger.error("创建VPC失败")
@@ -431,7 +431,7 @@ def main():
                 continue
 
             # 创建实例专用子网
-            subnet_config = pg_config['instance']['subnet']
+            subnet_config = instance_config['instance']['subnet']
             subnet_id = vpc_manager.create_subnet(
                 vpc_id=vpc_id,
                 subnet_name=subnet_config['name'],
@@ -457,59 +457,59 @@ def main():
             continue
 
         # 3. 创建PostgreSQL实例
-        instance_id = pg_manager.create_pg_instance(pg_config, vpc_id, subnet_id)
+        instance_id = instance_manager.create_instance(instance_config, vpc_id, subnet_id)
         if not instance_id:
             logger.error("创建PostgreSQL实例失败")
             continue
 
         # 等待实例创建完成
         logger.info("等待实例创建完成...")
-        if not pg_manager.wait_for_instance_ready(instance_id):
+        if not instance_manager.wait_for_instance_ready(instance_id):
             logger.error("实例创建超时或失败")
             continue
 
         # 4. 申请EIP
-        eip_id, eip_address, eip_name = pg_manager.allocate_eip()
+        eip_id, eip_address, eip_name = instance_manager.allocate_eip()
         if not eip_id:
             logger.error("申请EIP失败")
             continue
 
         # 5. 创建公网访问端点
-        address_domain, address_port = pg_manager.create_public_endpoint(instance_id, eip_id)
+        address_domain, address_port = instance_manager.create_public_endpoint(instance_id, eip_id)
         if not address_domain:
             logger.error("创建公网访问端点失败")
             continue
         # 5.1.  获取内网访问端点
-        private_address_domain, private_address_port = pg_manager.get_private_endpoint(instance_id)
+        private_address_domain, private_address_port = instance_manager.get_private_endpoint(instance_id)
         if not address_domain:
             logger.error("创建公网访问端点失败")
             continue
         # 6. 创建白名单
-        if not pg_manager.create_whitelist(instance_id):
+        if not instance_manager.create_whitelist(instance_id):
             logger.error("创建白名单失败")
             continue
 
         # 7. 创建账号
-        if not pg_manager.create_account(instance_id):
+        if not instance_manager.create_account(instance_id):
             logger.error("创建账号失败")
             continue
 
         # 8. 创建数据库
-        if not pg_manager.create_database(instance_id):
+        if not instance_manager.create_database(instance_id):
             logger.error("创建数据库失败")
             continue
 
         # 9. 创建Schema
-        if not pg_manager.create_schema(instance_id):
+        if not instance_manager.create_schema(instance_id):
             logger.error("创建Schema失败")
             continue
 
         # 10. 修改备份策略
-        if not pg_manager.modify_backup_policy(instance_id):
+        if not instance_manager.modify_backup_policy(instance_id):
             logger.error("修改备份策略失败")
             continue
 
-        logger.info(f"成功完成实例 {pg_config['instance']['name']} 的所有操作！")
+        logger.info(f"成功完成实例 {instance_config['instance']['name']} 的所有操作！")
         
         # 将实例信息写入日志文件，使用追加模式
         pg_instance_info_path = os.path.join(log_dir, 'pg_instance_info.md')
@@ -520,7 +520,7 @@ def main():
             f.write(f"# PostgreSQL实例创建记录\n\n")
             f.write(f"## 实例信息\n")
             f.write(f"- 实例ID: {instance_id}\n")
-            f.write(f"- 实例名称: {pg_config['instance']['name']}\n")
+            f.write(f"- 实例名称: {instance_config['instance']['name']}\n")
             f.write(f"- 创建时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             
             f.write(f"## 网络配置\n")
@@ -536,37 +536,37 @@ def main():
 
 
             f.write(f"## 数据库配置\n")
-            f.write(f"- 数据库列表: {', '.join([db['name'] for db in pg_config['databases']])}\n\n")
+            f.write(f"- 数据库列表: {', '.join([db['name'] for db in instance_config['databases']])}\n\n")
             
             f.write(f"## 账号信息\n")
-            f.write(f"- 超级用户名: {pg_config['accounts'][0]['username']}\n")
-            f.write(f"- 超级用户密码: {pg_config['accounts'][0]['password']}\n")
-            f.write(f"- 普通用户名: {pg_config['accounts'][1]['username']}\n")
-            f.write(f"- 普通用户密码: {pg_config['accounts'][1]['password']}\n\n")
+            f.write(f"- 超级用户名: {instance_config['accounts'][0]['username']}\n")
+            f.write(f"- 超级用户密码: {instance_config['accounts'][0]['password']}\n")
+            f.write(f"- 普通用户名: {instance_config['accounts'][1]['username']}\n")
+            f.write(f"- 普通用户密码: {instance_config['accounts'][1]['password']}\n\n")
             
             f.write(f"## Schema配置\n")
-            for db in pg_config['databases']:
+            for db in instance_config['databases']:
                 for schema in db['schemas']:
                     f.write(f"- {db['name']}.{schema['name']}\n")
             f.write("\n")
             
             f.write(f"## 备份策略\n")
-            f.write(f"- 备份保留天数: {pg_config['backup']['retention_period']}天\n")
-            f.write(f"- 全量备份周期: {pg_config['backup']['full_backup_period']}\n")
-            f.write(f"- 全量备份时间: {pg_config['backup']['full_backup_time']}\n")
-            f.write(f"- 增量备份频率: {pg_config['backup']['increment_backup_frequency']}\n")
+            f.write(f"- 备份保留天数: {instance_config['backup']['retention_period']}天\n")
+            f.write(f"- 全量备份周期: {instance_config['backup']['full_backup_period']}\n")
+            f.write(f"- 全量备份时间: {instance_config['backup']['full_backup_time']}\n")
+            f.write(f"- 增量备份频率: {instance_config['backup']['increment_backup_frequency']}\n")
         
         logger.info(f"PostgreSQL实例ID: {instance_id}")
         logger.info(f"VPC ID: {vpc_id}")
         logger.info(f"子网 ID: {subnet_id}")
         logger.info(f"EIP地址: {eip_address}")
         logger.info(f"公网访问: {address_domain}:{address_port}")
-        logger.info(f"数据库列表: {', '.join([db['name'] for db in pg_config['databases']])}")
-        logger.info(f"超级用户名: {pg_config['accounts'][0]['username']}")
-        logger.info(f"超级用户密码: {pg_config['accounts'][0]['password']}")
-        logger.info(f"普通用户名: {pg_config['accounts'][1]['username']}")
-        logger.info(f"普通用户密码: {pg_config['accounts'][1]['password']}")
-        logger.info(f"Schema列表: {', '.join([f"{db['name']}.{schema['name']}" for db in pg_config['databases'] for schema in db['schemas']])}")
+        logger.info(f"数据库列表: {', '.join([db['name'] for db in instance_config['databases']])}")
+        logger.info(f"超级用户名: {instance_config['accounts'][0]['username']}")
+        logger.info(f"超级用户密码: {instance_config['accounts'][0]['password']}")
+        logger.info(f"普通用户名: {instance_config['accounts'][1]['username']}")
+        logger.info(f"普通用户密码: {instance_config['accounts'][1]['password']}")
+        logger.info(f"Schema列表: {', '.join([f"{db['name']}.{schema['name']}" for db in instance_config['databases'] for schema in db['schemas']])}")
 
 if __name__ == '__main__':
     main()

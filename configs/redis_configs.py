@@ -1,6 +1,6 @@
 # Redis实例配置
 
-redis_configs = [
+instance_configs = [
     {
         "instance": {
             "name": "test-dev-redis",

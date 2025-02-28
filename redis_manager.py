@@ -5,7 +5,7 @@ from volcenginesdkcore.rest import ApiException
 import volcenginesdkredis
 import volcenginesdkvpc
 from configs.api_config import api_config
-from configs.redis_config import redis_configs
+from configs.redis_configs import instance_configs
 from vpc_manager import VPCManager
 from whitelist_manager import RedisWhitelistManager
 
@@ -47,15 +47,15 @@ class RedisManager:
         configuration.client_side_validation = True
         Configuration.set_default(configuration)
 
-    def create_redis_instance(self, redis_config, vpc_id=None, subnet_id=None):
-        self.current_config = redis_config
+    def create_instance(self, instance_config, vpc_id=None, subnet_id=None):
+        self.current_config = instance_config
         try:
         #    检查是否已存在同名实例
             list_request = self.api.DescribeDBInstancesRequest()
             list_response = self.client_api.describe_db_instances(list_request)
 
             for instance in list_response.instances:
-                if instance.instance_name == redis_config['instance']['name']:
+                if instance.instance_name == instance_config['instance']['name']:
                     logger.info(f"实例已存在，实例ID: {instance.instance_id}")
                     return instance.instance_id
 
@@ -67,7 +67,7 @@ class RedisManager:
             # 创建新实例
             # 配置节点信息
             req_configure_nodes = []
-            for node_config in redis_config['instance']['configure_nodes']:
+            for node_config in instance_config['instance']['configure_nodes']:
                 node = self.api.ConfigureNodeForCreateDBInstanceInput(
                     az=node_config['az']
                 )
@@ -75,21 +75,21 @@ class RedisManager:
 
             request = self.api.CreateDBInstanceRequest(
                 configure_nodes=req_configure_nodes,
-                instance_name=redis_config['instance']['name'],
-                engine_version=redis_config['instance']['engine_version'],
-                node_number=redis_config['instance']['node_number'],
-                shard_capacity=redis_config['instance']['shard_capacity'],
+                instance_name=instance_config['instance']['name'],
+                engine_version=instance_config['instance']['engine_version'],
+                node_number=instance_config['instance']['node_number'],
+                shard_capacity=instance_config['instance']['shard_capacity'],
                 vpc_id=vpc_id,
                 subnet_id=subnet_id,
-                multi_az=redis_config['instance']['multi_az'],
-                region_id=redis_config['instance']['region_id'],
-                project_name=redis_config['instance']['project_name'],
-                auto_renew=redis_config['instance']['charge_info']['auto_renew'],
-                charge_type=redis_config['instance']['charge_info']['charge_type'],
-                purchase_months=redis_config['instance']['charge_info']['period'],
-                port=redis_config['instance']['port'],
-                password=redis_config['instance']['password'],
-                sharded_cluster=redis_config['instance']['sharded_cluster']
+                multi_az=instance_config['instance']['multi_az'],
+                region_id=instance_config['instance']['region_id'],
+                project_name=instance_config['instance']['project_name'],
+                auto_renew=instance_config['instance']['charge_info']['auto_renew'],
+                charge_type=instance_config['instance']['charge_info']['charge_type'],
+                purchase_months=instance_config['instance']['charge_info']['period'],
+                port=instance_config['instance']['port'],
+                password=instance_config['instance']['password'],
+                sharded_cluster=instance_config['instance']['sharded_cluster']
             )
             
             response = self.client_api.create_db_instance(request)
@@ -295,27 +295,27 @@ class RedisManager:
         return False
 
 def main():
-    redis_manager = RedisManager()
+    instance_manager = RedisManager()
     vpc_manager = VPCManager()
     subnet_id = None
 
     # 遍历所有Redis实例配置
-    for redis_config in redis_configs:
-        logger.info(f"\n开始创建实例: {redis_config['instance']['name']}")
+    for instance_config in instance_configs:
+        logger.info(f"\n开始创建实例: {instance_config['instance']['name']}")
 
         # 1. 检查配置中是否已指定VPC和子网
-        if 'vpc_id' in redis_config['instance'] and 'subnet_id' in redis_config['instance']:
-            vpc_id = redis_config['instance']['vpc_id']
-            subnet_id = redis_config['instance']['subnet_id']
+        if 'vpc_id' in instance_config['instance'] and 'subnet_id' in instance_config['instance']:
+            vpc_id = instance_config['instance']['vpc_id']
+            subnet_id = instance_config['instance']['subnet_id']
             logger.info(f"使用配置中指定的VPC ID: {vpc_id} 和子网 ID: {subnet_id}")
             instance_subnet_id = subnet_id
         else:
             # 创建VPC
             vpc_id = vpc_manager.create_vpc(
-                vpc_name=redis_config['instance']['vpc']['name'],
-                cidr_block=redis_config['instance']['vpc']['cidr_block'],
-                description=redis_config['instance']['vpc']['description'],
-                tags=redis_config['instance']['vpc']['tags']
+                vpc_name=instance_config['instance']['vpc']['name'],
+                cidr_block=instance_config['instance']['vpc']['cidr_block'],
+                description=instance_config['instance']['vpc']['description'],
+                tags=instance_config['instance']['vpc']['tags']
             )
             if not vpc_id:
                 logger.error("创建VPC失败")
@@ -327,7 +327,7 @@ def main():
                 continue
 
             # 创建实例专用子网
-            subnet_config = redis_config['instance']['subnet']
+            subnet_config = instance_config['instance']['subnet']
             subnet_id = vpc_manager.create_subnet(
                 vpc_id=vpc_id,
                 subnet_name=subnet_config['name'],
@@ -353,50 +353,50 @@ def main():
             continue
 
         # 3. 创建Redis实例
-        instance_id = redis_manager.create_redis_instance(redis_config, vpc_id, subnet_id)
+        instance_id = instance_manager.create_instance(instance_config, vpc_id, subnet_id)
         if not instance_id:
             logger.error("创建Redis实例失败")
             continue
 
         # 等待实例创建完成
         logger.info("等待实例创建完成...")
-        if not redis_manager.wait_for_instance_ready(instance_id):
+        if not instance_manager.wait_for_instance_ready(instance_id):
             logger.error("实例创建超时或失败")
             continue
 
         # 4. 申请EIP
-        eip_id, eip_address, eip_name = redis_manager.allocate_eip()
+        eip_id, eip_address, eip_name = instance_manager.allocate_eip()
         if not eip_id:
             logger.error("申请EIP失败")
             continue
 
         # 5. 创建公网访问端点
-        address_domain, address_port = redis_manager.create_public_endpoint(instance_id, eip_id)
+        address_domain, address_port = instance_manager.create_public_endpoint(instance_id, eip_id)
         if not address_domain:
             logger.error("创建公网访问端点失败")
             continue
         # 5.1 获取内网访问端点
-        private_address_domain, private_address_port = redis_manager.get_private_endpoint(instance_id)
+        private_address_domain, private_address_port = instance_manager.get_private_endpoint(instance_id)
         if not address_domain:
             logger.error("获取内网访问端点失败")
             continue
 
         # 6. 创建白名单
-        if not redis_manager.create_whitelist(instance_id):
+        if not instance_manager.create_whitelist(instance_id):
             logger.error("创建白名单失败")
             continue
 
-        # if not redis_manager.delete_whitelist(instance_id):
+        # if not instance_manager.delete_whitelist(instance_id):
         #     logger.error("删除白名单失败")
         #     continue
 
         # 7. 修改实例参数配置
-        if not redis_manager.modify_instance_params(instance_id,param_name="disabled-commands",param_value="flushall,flushdb"):
+        if not instance_manager.modify_instance_params(instance_id,param_name="disabled-commands",param_value="flushall,flushdb"):
             logger.error("修改实例参数配置失败")
             continue
 
         # 记录实例创建成功的信息
-        logger.info(f"\n成功完成实例 {redis_config['instance']['name']} 的所有操作！")
+        logger.info(f"\n成功完成实例 {instance_config['instance']['name']} 的所有操作！")
         logger.info(f"Redis实例ID: {instance_id}")
         logger.info(f"VPC ID: {vpc_id}")
         logger.info(f"子网 ID: {subnet_id}")
@@ -413,16 +413,16 @@ def main():
             f.write(f"# Redis实例创建记录\n\n")
             f.write(f"## 实例信息\n")
             f.write(f"- 实例ID: {instance_id}\n")
-            f.write(f"- 实例名称: {redis_config['instance']['name']}\n")
+            f.write(f"- 实例名称: {instance_config['instance']['name']}\n")
             f.write(f"- 查询时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"- Redis版本: {redis_config['instance']['engine_version']}\n")
-            f.write(f"- 节点数量: {redis_config['instance']['node_number']}\n")
-            f.write(f"- 分片容量: {redis_config['instance']['shard_capacity']}MB\n\n")
+            f.write(f"- Redis版本: {instance_config['instance']['engine_version']}\n")
+            f.write(f"- 节点数量: {instance_config['instance']['node_number']}\n")
+            f.write(f"- 分片容量: {instance_config['instance']['shard_capacity']}MB\n\n")
 
             f.write(f"## 网络配置\n")
             f.write(f"- VPC ID: {vpc_id}\n")
             f.write(f"- 子网 ID: {subnet_id}\n")
-            f.write(f"- EIP名称: {redis_config['eip']}\n")
+            f.write(f"- EIP名称: {instance_config['eip']}\n")
             f.write(f"- EIP地址: {eip_address}\n")
             f.write(f"- 内网访问域名: {private_address_domain}\n")
             f.write(f"- 内网访问端口: {private_address_port}\n")
@@ -430,15 +430,15 @@ def main():
             f.write(f"- 公网访问端口: {address_port}\n\n")
 
             f.write(f"## 账号信息\n")
-            for account in redis_config['accounts']:
+            for account in instance_config['accounts']:
                 f.write(f"- 账号类型: {account['account_type']}\n")
                 f.write(f"- 用户名: {account['username']}\n")
                 f.write(f"- 密码: {account['password']}\n\n")
 
             f.write(f"## 备份策略\n")
-            f.write(f"- 备份保留天数: {redis_config['backup']['retention_period']}天\n")
-            f.write(f"- 备份时间段: {redis_config['backup']['backup_time']}\n")
-            f.write(f"- 备份周期: {', '.join(redis_config['backup']['backup_period'])}\n\n")
+            f.write(f"- 备份保留天数: {instance_config['backup']['retention_period']}天\n")
+            f.write(f"- 备份时间段: {instance_config['backup']['backup_time']}\n")
+            f.write(f"- 备份周期: {', '.join(instance_config['backup']['backup_period'])}\n\n")
 
 if __name__ == "__main__":
     main()

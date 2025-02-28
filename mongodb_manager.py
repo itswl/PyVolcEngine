@@ -9,6 +9,7 @@ from configs.api_config import api_config, timeout_config
 from configs.network_config import network_config
 from vpc_manager import VPCManager
 from whitelist_manager import MongoDBWhitelistManager
+from configs.optimized_mongodb_configs import instance_configs
 
 import os
 # 确保logs目录存在
@@ -21,7 +22,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-file_handler = logging.FileHandler(os.path.join(log_dir, 'mongodb_manager.log'))
+file_handler = logging.FileHandler(os.path.join(log_dir, 'instance_manager.log'))
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 logger.addHandler(file_handler)
@@ -44,16 +45,53 @@ class MongoDBManager:
         configuration.client_side_validation = True
         volcenginesdkcore.Configuration.set_default(configuration)
 
-    def create_mongodb_instance(self, mongodb_config, vpc_id=None, subnet_id=None):
-        self.current_config = mongodb_config  # 设置当前配置
+    def print_instance(self, instance_config, vpc_id=None, subnet_id=None):
+        self.current_config = instance_config  # 设置当前配置
+        list_request = self.api.DescribeDBInstancesRequest()
+        list_response = self.client_api.describe_db_instances(list_request)
+            
+            # 检查是否已存在名为配置中指定的实例
+        for instance in list_response.db_instances:
+            if instance.instance_name == instance_config['instance']['name']:
+                print("实例已存在，实例ID: %s" % instance.instance_id)
+                return instance.instance_id
+
+            # 检查是否提供了必要的网络参数
+        if not vpc_id or not subnet_id:
+            logger.error("创建MongoDB实例需要提供有效的VPC ID和子网ID")
+            return None
+        instance_type=instance_config['instance']['instance_type']
+        instance_name=instance_config['instance']['name']
+        db_engine=instance_config['instance']['db_engine']
+        db_engine_version=instance_config['instance']['engine_version']
+        storage_space_gb=instance_config['instance']['storage_space_gb']
+        period=instance_config['instance']['period']
+        period_unit=instance_config['instance']['period_unit']
+        project_name=instance_config['instance']['project_name']
+        vpc_id=vpc_id
+        subnet_id=subnet_id
+        zone_id=instance_config['instance']['zone_id']
+        auto_renew=instance_config['instance']['charge_info']['auto_renew']
+        charge_type=instance_config['instance']['charge_info']['charge_type']
+        count=1
+        mongos_node_number=instance_config['instance']['mongos_node_number']
+        mongos_node_spec=instance_config['instance']['mongos_node_spec']
+        node_number=instance_config['instance']['mongos_node_number']
+        node_spec=instance_config['instance']['node_spec']
+        shard_number=instance_config['instance']['shard_number']
+        super_account_name=instance_config['instance']['super_account_name']
+        super_account_password=instance_config['instance']['super_account_password']
+        print(instance_type,instance_name,db_engine,db_engine_version,storage_space_gb,period,period_unit,project_name,vpc_id,subnet_id,zone_id,auto_renew,charge_type,count,mongos_node_number,mongos_node_spec,node_number,node_spec,shard_number,super_account_name,super_account_password)
+
+    def create_instance(self, instance_config, vpc_id=None, subnet_id=None):
+        self.current_config = instance_config  # 设置当前配置
         try:
             # 先列出所有实例
             list_request = self.api.DescribeDBInstancesRequest()
             list_response = self.client_api.describe_db_instances(list_request)
-            
             # 检查是否已存在名为配置中指定的实例
-            for instance in list_response.instances:
-                if instance.instance_name == mongodb_config['instance']['name']:
+            for instance in list_response.db_instances:
+                if instance.instance_name == instance_config['instance']['name']:
                     print("实例已存在，实例ID: %s" % instance.instance_id)
                     return instance.instance_id
 
@@ -62,29 +100,30 @@ class MongoDBManager:
                 logger.error("创建MongoDB实例需要提供有效的VPC ID和子网ID")
                 return None
 
+
             # 如果不存在，则创建新实例
             request = self.api.CreateDBInstanceRequest(
-                instance_type=mongodb_config['instance']['instance_type'],
-                instance_name=mongodb_config['instance']['name'],
-                db_engine=mongodb_config['instance']['db_engine'],
-                db_engine_version=mongodb_config['instance']['engine_version'],
-                storage_space_gb=mongodb_config['instance']['storage_space_gb'],
-                period=mongodb_config['instance']['period'],
-                period_unit=mongodb_config['instance']['period_unit'],
-                project_name=mongodb_config['instance']['project_name'],
+                instance_type=instance_config['instance']['instance_type'],
+                instance_name=instance_config['instance']['name'],
+                db_engine=instance_config['instance']['db_engine'],
+                db_engine_version=instance_config['instance']['engine_version'],
+                storage_space_gb=instance_config['instance']['storage_space_gb'],
+                period=instance_config['instance']['period'],
+                period_unit=instance_config['instance']['period_unit'],
+                project_name=instance_config['instance']['project_name'],
                 vpc_id=vpc_id,
                 subnet_id=subnet_id,
-                zone_id=redis_config['instance']['zone_id'],
-                auto_renew=redis_config['instance']['charge_info']['auto_renew'],
-                charge_type=redis_config['instance']['charge_info']['charge_type'],
+                zone_id=instance_config['instance']['zone_id'],
+                auto_renew=instance_config['instance']['charge_info']['auto_renew'],
+                charge_type=instance_config['instance']['charge_info']['charge_type'],
                 count=1,
-                mongos_node_number=2,
-                mongos_node_spec="mongo.mongos.2c4g",
-                node_number=2,
-                node_spec="mongo.mongos.2c4g",
-                shard_number=2,
-                super_account_name="root",
-                super_account_password="root",
+                mongos_node_number=instance_config['instance']['mongos_node_number'],
+                mongos_node_spec=instance_config['instance']['mongos_node_spec'],
+                node_number=instance_config['instance']['node_number'],
+                node_spec=instance_config['instance']['node_spec'],
+                shard_number=instance_config['instance']['shard_number'],
+                super_account_name=instance_config['instance']['super_account_name'],
+                super_account_password=instance_config['instance']['super_account_password']
             )
             
             response = self.client_api.create_db_instance(request)
@@ -103,22 +142,19 @@ class MongoDBManager:
     def get_private_endpoint(self, instance_id):
         try:
             # 查询实例详情获取内网访问信息
-            describe_request = self.api.DescribeDBInstanceDetailRequest(
+            describe_request = self.api.DescribeDBEndpointRequest(
                 instance_id=instance_id
             )
-            describe_response = self.client_api.describe_db_instance_detail(describe_request)
+            describe_response = self.client_api.describe_db_endpoint(describe_request)
             
             # 遍历endpoints查找内网连接点
-            if hasattr(describe_response, 'endpoints'):
-                for endpoint in describe_response.endpoints:
-                    for address in endpoint.address:
-                        if address.network_type == 'Private':
-                            print(f"内网访问端点信息:")
-                            print(f"  - 域名: {address.domain}")
-                            print(f"  - IP地址: {address.ip_address}")
-                            print(f"  - 端口: {address.port}")
-                            print(f"  - 完整连接地址: {address.domain}:{address.port}")
-                            return address.domain, address.port
+            private_endpoints = []
+            if hasattr(describe_response, 'db_endpoints'):
+                return describe_response.db_endpoints[0].endpoint_str, None
+            
+            if private_endpoints:
+                print(f"找到 {len(private_endpoints)} 个内网访问端点")
+                return private_endpoints[0]  # 返回第一个端点保持兼容性
             
             print("未找到内网访问端点信息")
             return None, None
@@ -134,46 +170,54 @@ class MongoDBManager:
                 instance_id=instance_id
             )
             describe_response = self.client_api.describe_db_instance_detail(describe_request)
-            
+            object_id=describe_response.db_instance.mongos_id
+            mongos_node_ids=describe_response.db_instance.mongos[0].mongos_node_id
+            describe_request = self.api.DescribeDBEndpointRequest(
+                instance_id=instance_id
+            )
+            describe_response = self.client_api.describe_db_endpoint(describe_request)
             # 检查实例的 endpoints 中是否已有公网连接点
-            if hasattr(describe_response, 'endpoints'):
-                for endpoint in describe_response.endpoints:
-                    for address in endpoint.address:
-                        if address.network_type == 'Public':
+            if hasattr(describe_response, 'db_endpoints'):
+                print('========')
+                for endpoint in describe_response.db_endpoints:
+                    if endpoint.network_type == 'Public':
+                        for address in endpoint.db_addresses:
                             print(f"公网访问端点已存在:")
-                            print(f"  - 域名: {address.domain}")
-                            print(f"  - 端口: {address.port}")
-                            print(f"  - 完整连接地址: {address.domain}:{address.port}")
-                            return address.domain, address.port
+                            print(f"  - 域名: {address.address_domain}")
+                            print(f"  - 端口: {address.address_port}")
+                            print(f"  - 完整连接地址: {address.address_domain}:{address.address_port}")
+                            return address.address_domain, address.address_port
 
             # 如果不存在，则创建新的公网访问端点
-            request = self.api.CreateDBEndpointPublicAddressRequest(
+            request = self.api.CreateDBEndpointRequest(
                 instance_id=instance_id,
-                eip_id=eip_id
+                eip_ids=[eip_id],
+                network_type="Public",
+                object_id=object_id,
+                mongos_node_ids=[mongos_node_ids]
             )
             
-            response = self.client_api.create_db_endpoint_public_address(request)
+            response = self.client_api.create_db_endpoint(request)
             print("正在创建公网访问地址...")
             
             # 等待公网访问端点创建完成
             max_retries = 10
             retry_interval = 30
             for retry in range(max_retries):
-                describe_request = self.api.DescribeDBInstanceDetailRequest(
+                describe_request = self.api.DescribeDBEndpointRequest(
                     instance_id=instance_id
                 )
-                describe_response = self.client_api.describe_db_instance_detail(describe_request)
-                
-                if hasattr(describe_response, 'endpoints'):
-                    for endpoint in describe_response.endpoints:
-                        for address in endpoint.address:
-                            if address.network_type == 'Public':
-                                print(f"公网访问端点创建成功:")
-                                print(f"  - 域名: {address.domain}")
-                                print(f"  - 端口: {address.port}")
-                                print(f"  - 完整连接地址: {address.domain}:{address.port}")
-                                return address.domain, address.port
-                
+                describe_response = self.client_api.describe_db_endpoint(describe_request)
+                if hasattr(describe_response, 'db_endpoints'):
+                    for endpoint in describe_response.db_endpoints:
+                        if endpoint.network_type == 'Public':
+                            for address in endpoint.db_addresses:
+                                print(f"公网访问端点已存在:")
+                                print(f"  - 域名: {address.address_domain}")
+                                print(f"  - 端口: {address.address_port}")
+                                print(f"  - 完整连接地址: {address.address_domain}:{address.address_port}")
+                                return address.address_domain, address.address_port
+
                 if retry < max_retries - 1:
                     print(f"等待{retry_interval}秒后重试...")
                     time.sleep(retry_interval)
@@ -201,7 +245,7 @@ class MongoDBManager:
                 request = self.api.DescribeDBInstancesRequest()
                 response = self.client_api.describe_db_instances(request)
                 
-                for instance in response.instances:
+                for instance in response.db_instances:
                     if instance.instance_id == instance_id:
                         if instance.instance_status == "Running":
                             print("实例已准备就绪")
@@ -274,7 +318,7 @@ class MongoDBManager:
                 describe_response = self.client_api.describe_db_instances(describe_request)
                 
                 instance_ready = False
-                for instance in describe_response.instances:
+                for instance in describe_response.db_instances:
                     if instance.instance_id == instance_id:
                         print(f"当前实例状态: {instance.instance_status}")
                         if instance.instance_status == "Running":
@@ -369,7 +413,7 @@ class MongoDBManager:
             print(f"创建Schema时发生异常: {e}")
             return False
 
-    def modify_backup_policy(self, instance_id):
+    def modify_backup_policy(self, instance_id):  
         try:
             request = self.api.ModifyBackupPolicyRequest(
                 instance_id=instance_id,
@@ -388,27 +432,27 @@ class MongoDBManager:
             return False
 
 def main():
-    mongodb_manager = MongoDBManager()
+    instance_manager = MongoDBManager()
     vpc_manager = VPCManager()
     subnet_id = None  # 初始化subnet_id变量
 
     # 遍历所有PostgreSQL实例配置
-    for pg_config in pg_configs:
-        logger.info(f"\n开始创建实例: {pg_config['instance']['name']}")
+    for instance_config in instance_configs:
+        logger.info(f"\n开始创建实例: {instance_config['instance']['name']}")
 
         # 1. 检查配置中是否已指定VPC和子网
-        if 'vpc_id' in pg_config['instance'] and 'subnet_id' in pg_config['instance']:
-            vpc_id = pg_config['instance']['vpc_id']
-            subnet_id = pg_config['instance']['subnet_id']
+        if 'vpc_id' in instance_config['instance'] and 'subnet_id' in instance_config['instance']:
+            vpc_id = instance_config['instance']['vpc_id']
+            subnet_id = instance_config['instance']['subnet_id']
             logger.info(f"使用配置中指定的VPC ID: {vpc_id} 和子网 ID: {subnet_id}")
             instance_subnet_id = subnet_id
         else:
             # 创建VPC
             vpc_id = vpc_manager.create_vpc(
-                vpc_name=pg_config['instance']['vpc']['name'],
-                cidr_block=pg_config['instance']['vpc']['cidr_block'],
-                description=pg_config['instance']['vpc']['description'],
-                tags=pg_config['instance']['vpc']['tags']
+                vpc_name=instance_config['instance']['vpc']['name'],
+                cidr_block=instance_config['instance']['vpc']['cidr_block'],
+                description=instance_config['instance']['vpc']['description'],
+                tags=instance_config['instance']['vpc']['tags']
             )
             if not vpc_id:
                 logger.error("创建VPC失败")
@@ -420,7 +464,7 @@ def main():
                 continue
 
             # 创建实例专用子网
-            subnet_config = pg_config['instance']['subnet']
+            subnet_config = instance_config['instance']['subnet']
             subnet_id = vpc_manager.create_subnet(
                 vpc_id=vpc_id,
                 subnet_name=subnet_config['name'],
@@ -445,63 +489,64 @@ def main():
             logger.error("在实例指定可用区未找到或创建子网失败")
             continue
 
-        # 3. 创建PostgreSQL实例
-        instance_id = mongodb_manager.create_pg_instance(pg_config, vpc_id, subnet_id)
+        # 3. 创建实例 ，无法指定 config_server 的配置，也无法调用接口修改 config_server 的配置
+        instance_manager.print_instance(instance_config,vpc_id, subnet_id)
+        instance_id = instance_manager.create_instance(instance_config, vpc_id, subnet_id)
         if not instance_id:
-            logger.error("创建PostgreSQL实例失败")
+            logger.error("创建实例失败")
             continue
 
         # 等待实例创建完成
         logger.info("等待实例创建完成...")
-        if not mongodb_manager.wait_for_instance_ready(instance_id):
+        if not instance_manager.wait_for_instance_ready(instance_id):
             logger.error("实例创建超时或失败")
             continue
 
         # 4. 申请EIP
-        eip_id, eip_address, eip_name = mongodb_manager.allocate_eip()
+        eip_id, eip_address, eip_name = instance_manager.allocate_eip()
         if not eip_id:
             logger.error("申请EIP失败")
             continue
 
         # 5. 创建公网访问端点
-        address_domain, address_port = mongodb_manager.create_public_endpoint(instance_id, eip_id)
+        address_domain, address_port = instance_manager.create_public_endpoint(instance_id, eip_id)
         if not address_domain:
             logger.error("创建公网访问端点失败")
             continue
         # 5.1.  获取内网访问端点
-        private_address_domain, private_address_port = mongodb_manager.get_private_endpoint(instance_id)
+        private_address_domain, address_port = instance_manager.get_private_endpoint(instance_id)
         if not address_domain:
             logger.error("创建公网访问端点失败")
             continue
         # 6. 创建白名单
-        if not mongodb_manager.create_whitelist(instance_id):
+        if not instance_manager.create_whitelist(instance_id):
             logger.error("创建白名单失败")
             continue
 
-        # 7. 创建账号
-        if not mongodb_manager.create_account(instance_id):
-            logger.error("创建账号失败")
-            continue
+        # # 7. 创建账号
+        # if not instance_manager.create_account(instance_id):
+        #     logger.error("创建账号失败")
+        #     continue
 
-        # 8. 创建数据库
-        if not mongodb_manager.create_database(instance_id):
-            logger.error("创建数据库失败")
-            continue
+        # # 8. 创建数据库，官方不支持
+        # if not instance_manager.create_database(instance_id):
+        #     logger.error("创建数据库失败")
+        #     continue
 
-        # 9. 创建Schema
-        if not mongodb_manager.create_schema(instance_id):
-            logger.error("创建Schema失败")
-            continue
+        # # 9. 创建Schema
+        # if not instance_manager.create_schema(instance_id):
+        #     logger.error("创建Schema失败")
+        #     continue
 
-        # 10. 修改备份策略
-        if not mongodb_manager.modify_backup_policy(instance_id):
-            logger.error("修改备份策略失败")
-            continue
+        # 10. 修改备份策略, 官方未实现
+        # if not instance_manager.modify_backup_policy(instance_id):
+            # logger.error("修改备份策略失败")
+            # continue
 
-        logger.info(f"成功完成实例 {pg_config['instance']['name']} 的所有操作！")
+        logger.info(f"成功完成实例 {instance_config['instance']['name']} 的所有操作！")
         
         # 将实例信息写入日志文件，使用追加模式
-        pg_instance_info_path = os.path.join(log_dir, 'pg_instance_info.md')
+        pg_instance_info_path = os.path.join(log_dir, 'mongodb_instance_info.md')
         with open(pg_instance_info_path, 'a', encoding='utf-8') as f:
             # 添加分隔符和时间戳
             f.write(f"\n{'='*50}\n")
@@ -509,7 +554,7 @@ def main():
             f.write(f"# PostgreSQL实例创建记录\n\n")
             f.write(f"## 实例信息\n")
             f.write(f"- 实例ID: {instance_id}\n")
-            f.write(f"- 实例名称: {pg_config['instance']['name']}\n")
+            f.write(f"- 实例名称: {instance_config['instance']['name']}\n")
             f.write(f"- 创建时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             
             f.write(f"## 网络配置\n")
@@ -518,44 +563,44 @@ def main():
             f.write(f"- EIP名称: {eip_name}\n")
             f.write(f"- EIP地址: {eip_address}\n")
             f.write(f"- EIP ID: {eip_id}\n")
-            f.write(f"- 内网访问域名: {private_address_domain}\n")
-            f.write(f"- 内网访问端口: {private_address_port}\n")
+            f.write(f"- 内网访问信息: {private_address_domain}\n")
+            # f.write(f"- 内网访问端口: {private_address_port}\n")
             f.write(f"- 公网访问域名: {address_domain}\n")
             f.write(f"- 公网访问端口: {address_port}\n")
 
 
             f.write(f"## 数据库配置\n")
-            f.write(f"- 数据库列表: {', '.join([db['name'] for db in pg_config['databases']])}\n\n")
+            f.write(f"- 数据库列表: {', '.join([db['name'] for db in instance_config['databases']])}\n\n")
             
             f.write(f"## 账号信息\n")
-            f.write(f"- 超级用户名: {pg_config['accounts'][0]['username']}\n")
-            f.write(f"- 超级用户密码: {pg_config['accounts'][0]['password']}\n")
-            f.write(f"- 普通用户名: {pg_config['accounts'][1]['username']}\n")
-            f.write(f"- 普通用户密码: {pg_config['accounts'][1]['password']}\n\n")
+            f.write(f"- 超级用户名: {instance_config['accounts'][0]['username']}\n")
+            f.write(f"- 超级用户密码: {instance_config['accounts'][0]['password']}\n")
+            # f.write(f"- 普通用户名: {instance_config['accounts'][1]['username']}\n")
+            # f.write(f"- 普通用户密码: {instance_config['accounts'][1]['password']}\n\n")
             
             f.write(f"## Schema配置\n")
-            for db in pg_config['databases']:
+            for db in instance_config['databases']:
                 for schema in db['schemas']:
                     f.write(f"- {db['name']}.{schema['name']}\n")
             f.write("\n")
             
             f.write(f"## 备份策略\n")
-            f.write(f"- 备份保留天数: {pg_config['backup']['retention_period']}天\n")
-            f.write(f"- 全量备份周期: {pg_config['backup']['full_backup_period']}\n")
-            f.write(f"- 全量备份时间: {pg_config['backup']['full_backup_time']}\n")
-            f.write(f"- 增量备份频率: {pg_config['backup']['increment_backup_frequency']}\n")
+            f.write(f"- 备份保留天数: {instance_config['backup']['retention_period']}天\n")
+            f.write(f"- 全量备份周期: {instance_config['backup']['full_backup_period']}\n")
+            f.write(f"- 全量备份时间: {instance_config['backup']['full_backup_time']}\n")
+            f.write(f"- 增量备份频率: {instance_config['backup']['increment_backup_frequency']}\n")
         
         logger.info(f"PostgreSQL实例ID: {instance_id}")
         logger.info(f"VPC ID: {vpc_id}")
         logger.info(f"子网 ID: {subnet_id}")
         logger.info(f"EIP地址: {eip_address}")
         logger.info(f"公网访问: {address_domain}:{address_port}")
-        logger.info(f"数据库列表: {', '.join([db['name'] for db in pg_config['databases']])}")
-        logger.info(f"超级用户名: {pg_config['accounts'][0]['username']}")
-        logger.info(f"超级用户密码: {pg_config['accounts'][0]['password']}")
-        logger.info(f"普通用户名: {pg_config['accounts'][1]['username']}")
-        logger.info(f"普通用户密码: {pg_config['accounts'][1]['password']}")
-        logger.info(f"Schema列表: {', '.join([f"{db['name']}.{schema['name']}" for db in pg_config['databases'] for schema in db['schemas']])}")
+        logger.info(f"数据库列表: {', '.join([db['name'] for db in instance_config['databases']])}")
+        logger.info(f"超级用户名: {instance_config['accounts'][0]['username']}")
+        logger.info(f"超级用户密码: {instance_config['accounts'][0]['password']}")
+        # logger.info(f"普通用户名: {instance_config['accounts'][1]['username']}")
+        # logger.info(f"普通用户密码: {instance_config['accounts'][1]['password']}")
+        # logger.info(f"Schema列表: {', '.join([f"{db['name']}.{schema['name']}" for db in instance_config['databases'] for schema in db['schemas']])}")
 
 if __name__ == '__main__':
     main()
