@@ -259,7 +259,7 @@ class ResourceBase:
             for instance in instances:
                 instance_info = {
                     'instance_id': instance.instance_id,
-                    'instance_name': instance.instance_name if hasattr(instance, 'instance_name') else '',
+                    'instance_name': getattr(instance, 'instance_name', None) or getattr(instance.instance_configuration, 'instance_name', '') if hasattr(instance, 'instance_configuration') else '',
                     'status': getattr(instance, 'status', None) or getattr(instance, 'instance_status', None),
                     'create_time': getattr(instance, 'create_time', None) or getattr(instance, 'created_time', None),
                     
@@ -272,6 +272,10 @@ class ResourceBase:
                     instance_info['subnet_id'] = instance.subnet_id
                 if hasattr(instance, 'db_engine_version'):
                     instance_info['db_engine_version'] = instance.db_engine_version
+
+                if hasattr(instance, 'instance_configuration'):
+                    instance_info['version'] = getattr(instance.instance_configuration, 'version', '')
+
                 
                 # 检查是否有公网访问点，如果有则添加eip_id和ip_address信息
                 if hasattr(instance, 'address_object'):
