@@ -31,7 +31,7 @@ file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 logger.addHandler(file_handler)
 
-class ResourceBaseCleaner:
+class ResourceBase:
     """资源清理基类，提供通用的资源清理逻辑
 
     这个基类实现了资源清理的基本功能，包括：
@@ -355,7 +355,7 @@ class ResourceBaseCleaner:
         logger.error(f"{operation}时发生异常: {e}")
         return False
 
-class PostgreSQLResourceCleaner(ResourceBaseCleaner):
+class PostgreSQLResource(ResourceBase):
     def __init__(self):
         super().__init__()
         self.api = volcenginesdkrdspostgresql
@@ -365,7 +365,7 @@ class PostgreSQLResourceCleaner(ResourceBaseCleaner):
         self.whitelist_manager.client_api = self.client_api
 
 
-class RedisResourceCleaner(ResourceBaseCleaner):
+class RedisResource(ResourceBase):
     def __init__(self):
         super().__init__()
         self.api = volcenginesdkredis
@@ -374,7 +374,7 @@ class RedisResourceCleaner(ResourceBaseCleaner):
         self.whitelist_manager.client_api = self.client_api
 
 
-class MongoDbResourceCleaner(ResourceBaseCleaner):
+class MongoDbResource(ResourceBase):
     def __init__(self):
         super().__init__()
         self.api = volcenginesdkmongodb
@@ -384,7 +384,7 @@ class MongoDbResourceCleaner(ResourceBaseCleaner):
 
 
 import volcenginesdkkafka
-class KafkaResourceCleaner(ResourceBaseCleaner):
+class KafkaResource(ResourceBase):
     def __init__(self):
         super().__init__()
         self.api = volcenginesdkkafka
@@ -393,7 +393,7 @@ class KafkaResourceCleaner(ResourceBaseCleaner):
         self.whitelist_manager.client_api = self.client_api
 
 import volcenginesdkescloud
-class ESCloudResourceCleaner(ResourceBaseCleaner):
+class ESCloudResource(ResourceBase):
     def __init__(self):
         super().__init__()
         self.api = volcenginesdkescloud

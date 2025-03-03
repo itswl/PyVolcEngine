@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-import resource_cleaner 
+import resource_manager 
 import logging
 import os
 
@@ -84,7 +84,7 @@ def clean_pg_resources():
     """清理PostgreSQL资源"""
     try:
         # 创建PostgreSQL资源清理器实例
-        pg_cleaner = resource_cleaner.PostgreSQLResourceCleaner()
+        pg_cleaner = resource_manager.PostgreSQLResource()
         
         # 从配置中获取需要清理的PostgreSQL实例信息
         pg_instance_ids = [instance['instance_id'] for instance in pg_resources['instances']]
@@ -105,7 +105,7 @@ def clean_redis_resources():
     """清理Redis资源"""
     try:
         # 创建Redis资源清理器实例
-        redis_cleaner = resource_cleaner.RedisResourceCleaner()
+        redis_cleaner = resource_manager.RedisResource()
         
         # 从配置中获取需要清理的Redis实例信息
         redis_instance_ids = [instance['instance_id'] for instance in redis_resources['instances']]
@@ -126,7 +126,7 @@ def clean_mongodb_resources():
     """清理MongoDB资源"""
     try:
         # 创建Redis资源清理器实例
-        mongodb_cleaner = resource_cleaner.MongoDbResourceCleaner()
+        mongodb_cleaner = resource_manager.MongoDbResource()
         
         # 从配置中获取需要清理的Redis实例信息
         mongodb_instance_ids = [instance['instance_id'] for instance in mongodb_resources['instances']]
@@ -147,7 +147,7 @@ def clean_kafka_resources():
     """清理Kafka资源"""
     try:
         # 创建Kafka资源清理器实例
-        kafka_cleaner = resource_cleaner.KafkaResourceCleaner()
+        kafka_cleaner = resource_manager.KafkaResource()
         
         # 从配置中获取需要清理的Kafka实例信息
         kafka_instance_ids = [instance['instance_id'] for instance in kafka_resources['instances']]
@@ -166,7 +166,7 @@ def clean_kafka_resources():
 
 def list_kafka_resource(page_number=1, page_size=100):
     """列出所有Kafka资源"""
-    kafka_resource = resource_cleaner.KafkaResourceCleaner()
+    kafka_resource = resource_manager.KafkaResource()
     kafka_resource_result = kafka_resource.list_instances(page_number=1, page_size=100)
     print(kafka_resource_result)
     if not kafka_resource_result:
@@ -197,7 +197,7 @@ def list_kafka_resource(page_number=1, page_size=100):
     print("注意: 如需查看更详细信息，请使用get_instance_detail方法获取实例详情")
 
 def list_pg_resource():
-    pg_resource = resource_cleaner.PostgreSQLResourceCleaner()
+    pg_resource = resource_manager.PostgreSQLResource()
     pg_resource_result = pg_resource.list_instances()
     if not pg_resource_result:
         print("未找到任何PostgreSQL实例")
@@ -227,7 +227,7 @@ def list_pg_resource():
     print("注意: 如需查看更详细信息，请使用list_instances方法获取实例详情")
 
 def list_redis_resource():
-    redis_resource = resource_cleaner.RedisResourceCleaner()
+    redis_resource = resource_manager.RedisResource()
     redis_resource_result = redis_resource.get_instance_detail()
     if not redis_resource_result:
         print("未找到任何Redis实例")
@@ -263,7 +263,7 @@ def list_redis_resource():
     print("注意: 如需查看更详细信息，请使用get_instance_detail方法获取实例详情")
 
 def list_mongodb_resource():
-    mongodb_resource = resource_cleaner.MongoDbResourceCleaner()
+    mongodb_resource = resource_manager.MongoDbResource()
     mongodb_resource_result = mongodb_resource.get_instance_detail()
     if not mongodb_resource_result:
         print("未找到任何MongoDB实例")
@@ -367,7 +367,7 @@ def clean_pg_resource_manual():
         eip_address = input("请输入EIP地址 (如果没有，请直接按Enter): ").strip()
         
         # 创建PostgreSQL资源清理器实例
-        pg_cleaner = resource_cleaner.PostgreSQLResourceCleaner()
+        pg_cleaner = resource_manager.PostgreSQLResource()
         
         if pg_cleaner.clean_all_resources([instance_id], [eip_address] if eip_address else []):
             logger.info(f"PostgreSQL实例 {instance_id} 清理完成！")
@@ -391,7 +391,7 @@ def clean_redis_resource_manual():
         eip_address = input("请输入EIP地址 (如果没有，请直接按Enter): ").strip()
         
         # 创建Redis资源清理器实例
-        redis_cleaner = resource_cleaner.RedisResourceCleaner()
+        redis_cleaner = resource_manager.RedisResource()
         
         if redis_cleaner.clean_all_resources([instance_id], [eip_address] if eip_address else []):
             logger.info(f"Redis实例 {instance_id} 清理完成！")
@@ -415,7 +415,7 @@ def clean_mongodb_resource_manual():
         eip_address = input("请输入EIP地址 (如果没有，请直接按Enter): ").strip()
         
         # 创建MongoDB资源清理器实例
-        mongodb_cleaner = resource_cleaner.MongoDbResourceCleaner()
+        mongodb_cleaner = resource_manager.MongoDbResource()
         
         if mongodb_cleaner.clean_all_resources([instance_id], [eip_address] if eip_address else []):
             logger.info(f"MongoDB实例 {instance_id} 清理完成！")
@@ -439,7 +439,7 @@ def clean_kafka_resource_manual():
         eip_address = input("请输入EIP地址 (如果没有，请直接按Enter): ").strip()
         
         # 创建Kafka资源清理器实例
-        kafka_cleaner = resource_cleaner.KafkaResourceCleaner()
+        kafka_cleaner = resource_manager.KafkaResource()
         
         if kafka_cleaner.clean_all_resources([instance_id], [eip_address] if eip_address else []):
             logger.info(f"Kafka实例 {instance_id} 清理完成！")
@@ -456,7 +456,7 @@ def list_escloud_resource():
     """列出所有ESCloud资源"""
     try:
         # 创建ESCloud资源清理器实例
-        escloud_cleaner = resource_cleaner.ESCloudResourceCleaner()
+        escloud_cleaner = resource_manager.ESCloudResource()
         escloud_resource_result = escloud_cleaner.list_instances()
         
         if not escloud_resource_result:
@@ -487,7 +487,7 @@ def clean_escloud_resources():
     """清理ESCloud资源"""
     try:
         # 创建ESCloud资源清理器实例
-        escloud_cleaner = resource_cleaner.ESCloudResourceCleaner()
+        escloud_cleaner = resource_manager.ESCloudResource()
         
         # 从配置中获取需要清理的ESCloud实例信息
         escloud_instance_ids = [instance['instance_id'] for instance in escloud_resources['instances']]
@@ -512,7 +512,7 @@ def clean_escloud_resource_manual():
             return False
         
         # 创建ESCloud资源清理器实例
-        escloud_cleaner = resource_cleaner.ESCloudResourceCleaner()
+        escloud_cleaner = resource_manager.ESCloudResource()
         
         if escloud_cleaner.clean_all_resources([instance_id]):
             logger.info(f"ESCloud实例 {instance_id} 清理完成！")

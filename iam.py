@@ -258,6 +258,70 @@ class IAMManager:
         except Exception as e:
             logger.error(f"附加策略失败: {user_name} -> {policy_name}, 错误: {str(e)}")
             raise
+            
+    def list_users(self, limit: int = 1000, offset: int = 0) -> List:
+        """获取所有IAM用户列表
+        
+        Args:
+            limit: 每页返回的最大数量，默认1000
+            offset: 分页偏移量，默认0
+            
+        Returns:
+            List: 用户列表
+        """
+        try:
+            list_users_request = self.api.ListUsersRequest(
+                limit=limit,
+                offset=offset
+            )
+            list_users_response = self.client_api.list_users(list_users_request)
+            
+            logger.info(f"成功获取用户列表，共 {len(list_users_response.user_metadata)} 个用户")
+            return list_users_response.user_metadata
+        except Exception as e:
+            logger.error(f"获取用户列表失败，错误: {str(e)}")
+            raise
+    
+    def delete_user(self, user_name: str) -> bool:
+        """删除指定IAM用户
+        
+        删除用户前会检查用户是否存在，如果用户不存在则返回False
+        
+        Args:
+            user_name: 要删除的用户名
+            
+        Returns:
+            bool: 删除成功返回True，用户不存在返回False
+        """
+        try:
+            # 先检查用户是否存在
+            try:
+                list_users_request = self.api.ListUsersRequest(limit=1000)
+                list_users_response = self.client_api.list_users(list_users_request)
+                
+                user_exists = any(user.user_name == user_name 
+                                for user in list_users_response.user_metadata)
+                
+                if not user_exists:
+                    logger.warning(f"用户不存在，无法删除: {user_name}")
+                    return False
+            except Exception as e:
+                logger.warning(f"检查用户存在性失败: {user_name}, 错误: {str(e)}")
+            
+            # 删除用户
+            delete_user_request = self.api.DeleteUserRequest(
+                user_name=user_name
+            )
+            
+            self.client_api.delete_user(delete_user_request)
+            logger.info(f"成功删除用户: {user_name}")
+            return True
+        except Exception as e:
+            if "NoSuchEntity" in str(e):
+                logger.warning(f"用户不存在，无法删除: {user_name}")
+                return False
+            logger.error(f"删除用户失败: {user_name}, 错误: {str(e)}")
+            raise
 
     def attach_policies_to_groups(self) -> None:
         """为用户组附加权限策略"""
@@ -301,38 +365,98 @@ class IAMManager:
                 self._create_access_key(user_info)
 
 def main():
-    """主函数"""
+    """主函数
+    
+    支持三种调用方式：
+    1. 完整流程：创建用户组、用户，设置权限等
+    2. 列出用户：显示所有IAM用户信息
+    3. 删除用户：删除指定的用户
+    """
+    import argparse
+    
+    # 创建命令行参数解析器
+    parser = argparse.ArgumentParser(description='火山引擎IAM用户管理工具')
+    parser.add_argument('mode', choices=['full', 'list', 'delete'],
+                        help='运行模式：full-完整流程，list-列出用户，delete-删除用户')
+    parser.add_argument('--users', nargs='+', help='要删除的用户名列表（仅在delete模式下需要）')
+    
+    args = parser.parse_args()
+    
     try:
         # 创建IAM管理器实例
         iam_manager = IAMManager()
         
-        # 创建用户组
-        iam_manager.create_user_groups()
-        logger.info("用户组创建完成")
-        
-        # 创建用户
-        iam_manager.create_users()
-        logger.info("用户创建完成")
-        
-        # 设置用户登录配置
-        iam_manager.set_user_login_profile()
-        logger.info("用户登录配置完成")
-        
-        # 设置用户访问密钥
-        iam_manager.set_user_access_key()
-        logger.info("用户访问密钥配置完成")
-        
-        # 关联用户到用户组
-        iam_manager.attach_users_to_groups()
-        logger.info("用户组关联完成")
-        
-        # 配置权限策略
-        iam_manager.attach_policies_to_groups()
-        logger.info("用户组权限策略配置完成")
-
-        # # 配置权限策略
-        # iam_manager.attach_policies_to_user()
-        # logger.info("用户权限策略配置完成")
+        if args.mode == 'full':
+            # 完整流程模式
+            # 创建用户组
+            iam_manager.create_user_groups()
+            logger.info("用户组创建完成")
+            
+            # 创建用户
+            iam_manager.create_users()
+            logger.info("用户创建完成")
+            
+            # 设置用户登录配置
+            iam_manager.set_user_login_profile()
+            logger.info("用户登录配置完成")
+            
+            # 设置用户访问密钥
+            iam_manager.set_user_access_key()
+            logger.info("用户访问密钥配置完成")
+            
+            # 关联用户到用户组
+            iam_manager.attach_users_to_groups()
+            logger.info("用户组关联完成")
+            
+            # 配置权限策略
+            iam_manager.attach_policies_to_groups()
+            logger.info("用户组权限策略配置完成")
+            
+            # 列出所有用户
+            users = iam_manager.list_users()
+            logger.info("当前IAM用户列表:")
+            for user in users:
+                logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}")
+                
+        elif args.mode == 'list':
+            # 列出用户模式
+            users = iam_manager.list_users()
+            if users:
+                logger.info("当前IAM用户列表:")
+                for user in users:
+                    logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}")
+            else:
+                logger.info("当前没有IAM用户")
+                
+        elif args.mode == 'delete':
+            # 删除用户模式
+            if not args.users:
+                logger.error("删除模式下必须指定要删除的用户名列表 (--users)")
+                return
+            
+            # 显示要删除的用户列表并请求确认
+            logger.info("将要删除以下用户:")
+            for user_name in args.users:
+                logger.info(f"- {user_name}")
+            
+            confirm = input("\n确认要删除这些用户吗？(y/n): ")
+            if confirm.lower() != 'y':
+                logger.info("操作已取消")
+                return
+            
+            # 执行批量删除
+            success_count = 0
+            fail_count = 0
+            for user_name in args.users:
+                if iam_manager.delete_user(user_name):
+                    success_count += 1
+                    logger.info(f"成功删除用户: {user_name}")
+                else:
+                    fail_count += 1
+                    logger.warning(f"删除用户失败或用户不存在: {user_name}")
+            
+            # 显示删除结果统计
+            logger.info(f"\n删除操作完成：成功 {success_count} 个，失败 {fail_count} 个")
 
     except Exception as e:
         logger.error(f"程序执行失败: {str(e)}")

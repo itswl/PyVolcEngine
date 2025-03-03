@@ -78,7 +78,9 @@ def main():
     print('请谨慎操作!')
     print('请谨慎操作!!')
     print('请谨慎操作!!!')
-    print('请先调用 clean.py 获取实例信息')
+    print('请先调用 list_resources.py 获取实例信息')
+    print('请先调用 list_resources.py 获取实例信息')
+    print('请先调用 list_resources.py 获取实例信息')
     parser = argparse.ArgumentParser(description='实例退订工具')
     parser.add_argument('-i', '--instance-id', required=True, help='要退订的实例ID')
     parser.add_argument('-p', '--product', default='ESCloud', choices=['ESCloud', 'Message_Queue_for_Kafka', 'veDB for DocumentDB', 'RDS for PostgreSQL', 'veDB_for_Redis'],
