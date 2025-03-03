@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def list_kafka_resource(page_number=1, page_size=100):
     """列出所有Kafka资源"""
-    kafka_resource = resource_manager.KafkaResourceCleaner()
+    kafka_resource = resource_manager.KafkaResource()
     kafka_resource_result = kafka_resource.list_instances(page_number=1, page_size=100)
     if not kafka_resource_result:
         print("未找到任何Kafka实例")
@@ -39,7 +39,7 @@ def list_kafka_resource(page_number=1, page_size=100):
 
 def list_pg_resource():
     """列出所有PostgreSQL资源"""
-    pg_resource = resource_manager.PostgreSQLResourceCleaner()
+    pg_resource = resource_manager.PostgreSQLResource()
     pg_resource_result = pg_resource.list_instances()
     if not pg_resource_result:
         print("未找到任何PostgreSQL实例")
@@ -70,7 +70,7 @@ def list_pg_resource():
 
 def list_redis_resource():
     """列出所有Redis资源"""
-    redis_resource = resource_manager.RedisResourceCleaner()
+    redis_resource = resource_manager.RedisResource()
     redis_resource_result = redis_resource.get_instance_detail()
     if not redis_resource_result:
         print("未找到任何Redis实例")
@@ -107,7 +107,7 @@ def list_redis_resource():
 
 def list_mongodb_resource():
     """列出所有MongoDB资源"""
-    mongodb_resource = resource_manager.MongoDbResourceCleaner()
+    mongodb_resource = resource_manager.MongoDbResource()
     mongodb_resource_result = mongodb_resource.get_instance_detail()
     if not mongodb_resource_result:
         print("未找到任何MongoDB实例")
@@ -146,7 +146,7 @@ def list_escloud_resource():
     """列出所有ESCloud资源"""
     try:
         # 创建ESCloud资源清理器实例
-        escloud_cleaner = resource_manager.ESCloudResourceCleaner()
+        escloud_cleaner = resource_manager.ESCloudResource()
         escloud_resource_result = escloud_cleaner.list_instances()
         
         if not escloud_resource_result:
