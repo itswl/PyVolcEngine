@@ -148,7 +148,7 @@ def list_escloud_resource():
         # 创建ESCloud资源清理器实例
         escloud_cleaner = resource_manager.ESCloudResource()
         escloud_resource_result = escloud_cleaner.list_instances()
-        
+        # print(escloud_resource_result)
         if not escloud_resource_result:
             print("未找到任何ESCloud实例")
             return

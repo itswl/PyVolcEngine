@@ -24,11 +24,7 @@ file_handler = logging.FileHandler(os.path.join(log_dir, 'unsubscribe_escloud.lo
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 logger.addHandler(file_handler)
-'''
-veDB for DocumentDB
-Message_Queue_for_Kafka
-ESCloud
-'''
+
 
 def unsubscribe_instance(instance_id, product="ESCloud", force=False):
     """退订指定的实例
