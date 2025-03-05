@@ -23,7 +23,7 @@ instance_configs = [
         # 测试环境实例配置
         "instance": {
             "name": "pg-instance-1",  # 实例名称，在账号下必须唯一
-            "engine_version": "PostgreSQL_13",  # 数据库版本，支持PostgreSQL_11/12/13
+            "engine_version": "PostgreSQL_14",  # 数据库版本，支持PostgreSQL_11/12/13
             "storage_type": "LocalSSD",  # 存储类型，目前仅支持LocalSSD（本地SSD盘）
             "storage_space": 100,  # 存储空间大小，单位GB，范围：20-3000
             "node_spec": "rds.postgres.1c2g",  # 实例规格，格式：rds.postgres.[CPU核数]c[内存大小]g
@@ -143,7 +143,7 @@ instance_configs = [
     {  # 生产环境实例配置
         "instance": {
             "name": "pg-instance-2",  # 实例名称
-            "engine_version": "PostgreSQL_13",  # 数据库版本
+            "engine_version": "PostgreSQL_14",  # 数据库版本
             "storage_type": "LocalSSD",  # 存储类型
             "storage_space": 200,  # 存储空间，生产环境建议预留足够空间
             "node_spec": "rds.postgres.2c4g",  # 实例规格，生产环境建议使用更高配置

@@ -9,7 +9,7 @@ escloud_resources = {
     "instances": [
         {
             "instance_id": "es-test",
-            "eip_address": ""
+            "eip_address": "eip-3qdru72trhslc7prmkzww6wzq"
         }
     ]
 }
@@ -19,7 +19,7 @@ pg_resources = {
     "instances": [
         {
             "instance_id": "postgres-test",
-            "eip_address": "14.103.144.IP_ADDRESS1"
+            "eip_address": "eip-3qdru72trhslc7prmkzww6wzq"
         },
         {
             "instance_id": "postgres-f54b33c4ea44",
