@@ -118,7 +118,7 @@ class VKEManager:
             # 检查集群是否已存在
             list_clusters_request = ListClustersRequest()
             clusters_response = self.vke_api.list_clusters(list_clusters_request)
-            
+
             # 检查是否有同名集群
             existing_cluster = None
             if clusters_response and clusters_response.items:
@@ -421,7 +421,7 @@ class VKEManager:
                 create_kubeconfig_request = CreateKubeconfigRequest(
                     cluster_id=cluster_id,
                     type="Public",
-                    valid_duration=3600
+                    valid_duration=867240
                 )
                 create_response = self.vke_api.create_kubeconfig(create_kubeconfig_request)
                 print('成功创建新的kubeconfig')
@@ -625,9 +625,9 @@ class VKEManager:
 def main():
     """主函数示例"""
     # 配置信息
-    # ak = ""  # 替换为您的AK
-    # sk = ""  # 替换为您的SK
-    region = "cn-beijing"
+    ak = ""  # 替换为您的AK
+    sk = ""  # 替换为您的SK
+    region = "cn-shanghai"
     
     # 初始化VKE管理器
     vke_manager = VKEManager(ak=ak, sk=sk, region=region)
