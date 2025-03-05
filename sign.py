@@ -19,6 +19,8 @@ export ContentType='application/json'
 export Host='open.volcengineapi.com'
 export volcAK=''
 export volcSK=''
+
+Service: rds_postgresql mongodb vke Redis Kafka ESloud iam 
 '''
 
 class APIConfig:
