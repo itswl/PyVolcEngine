@@ -1,0 +1,281 @@
+{
+  "ResponseMetadata": {
+    "RequestId": "20250304111921F84B21CF3ABFA885B315",
+    "Action": "ListAddons",
+    "Version": "2022-05-12",
+    "Service": "vke",
+    "Region": "cn-shanghai"
+  },
+  "Result": {
+    "Items": [
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "cluster-autoscaler",
+        "Version": "v1.28.0-vke.6",
+        "DeployMode": "Managed",
+        "Config": "{\"ScanInterval\":\"10s\",\"ScaleDown\":{\"Enabled\":true,\"UtilizationThreshold\":0.5,\"GpuUtilizationThreshold\":0.5,\"UnneededTime\":10,\"DelayAfterAdded\":10,\"DelayAfterFailure\":3,\"SkipNodesWithLocalStorageDisabled\":false,\"SkipNodesWithSystemPodsDisabled\":false,\"MaxEmptyBulkDeleteNumber\":5,\"MinReplicas\":0,\"MaxGracefulTermination\":600,\"DaemonSetEvictionForNodesDisabled\":true},\"ScaleUp\":{\"Expander\":\"random\"}}",
+        "CreateTime": "2025-01-03 15:16:11.576678 +0800 CST",
+        "UpdateTime": "2025-01-03 15:16:11.576678 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      },
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "core-dns",
+        "Version": "1.11.1",
+        "DeployMode": "Unmanaged",
+        "DeployNodeType": "VirtualNode",
+        "Config": "{\"Resources\":{\"Requests\":{\"Cpu\":\"2\",\"Memory\":\"4Gi\"},\"Limits\":{\"Memory\":\"4Gi\"}}}",
+        "CreateTime": "2025-01-03 15:16:11.819686 +0800 CST",
+        "UpdateTime": "2025-01-03 15:31:19.494137 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      },
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "csi-ebs",
+        "Version": "v1.2.5",
+        "DeployMode": "Unmanaged",
+        "DeployNodeType": "VirtualNode",
+        "Config": "{\"ProjectName\":\"default\"}",
+        "CreateTime": "2025-01-03 15:16:11.406425 +0800 CST",
+        "UpdateTime": "2025-01-03 15:32:57.771656 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      },
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "csi-nas",
+        "Version": "v1.2.6",
+        "DeployMode": "Unmanaged",
+        "DeployNodeType": "VirtualNode",
+        "Config": "{\"CsiNasDriver\":{\"Resources\":{\"Requests\":{\"Cpu\":\"0.01\",\"Memory\":\"20Mi\"},\"Limits\":{\"Cpu\":\"0.9\",\"Memory\":\"1900Mi\"}}},\"CsiProvisioner\":{\"Resources\":{\"Requests\":{\"Cpu\":\"0.01\",\"Memory\":\"20Mi\"},\"Limits\":{\"Cpu\":\"0.5\",\"Memory\":\"4Gi\"}}},\"LivenessProbe\":{\"Resources\":{\"Requests\":{\"Cpu\":\"0.01\",\"Memory\":\"20Mi\"},\"Limits\":{\"Cpu\":\"0.1\",\"Memory\":\"100Mi\"}}}}",
+        "CreateTime": "2025-01-03 15:16:11.420998 +0800 CST",
+        "UpdateTime": "2025-01-03 15:32:16.030569 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      },
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "ingress-nginx",
+        "Version": "v1.9.5-vke.2",
+        "DeployMode": "Unmanaged",
+        "DeployNodeType": "Node",
+        "Config": "{\"Replicas\":2,\"Resources\":{\"Requests\":{\"Cpu\":\"0.1\",\"Memory\":\"250Mi\"},\"Limits\":{\"Cpu\":\"0.5\",\"Memory\":\"1024Mi\"}},\"LoadBalancer\":{\"BillingType\":2,\"Spec\":\"medium_1\",\"ModificationProtectionDisabled\":false,\"MasterZoneId\":\"cn-shanghai-a\",\"SlaveZoneId\":\"cn-shanghai-b\"},\"PublicNetwork\":{\"Isp\":\"BGP\",\"BandWidth\":100,\"IpFamily\":\"Ipv4\",\"BillingType\":3,\"SubnetId\":\"subnet-22jqp154rgum87r2qr1lfsh2i\"}}",
+        "CreateTime": "2025-01-10 19:40:39.467028 +0800 CST",
+        "UpdateTime": "2025-01-10 19:40:39.467028 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      },
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "log-collector",
+        "Version": "v2.1.1",
+        "DeployMode": "Unmanaged",
+        "DeployNodeType": "VirtualNode",
+        "Config": "{\"Controller\":{\"Resources\":{\"Requests\":{\"Cpu\":\"0.1\",\"Memory\":\"256Mi\"},\"Limits\":{\"Cpu\":\"4\",\"Memory\":\"2Gi\"}}},\"Filebeat\":{\"Resources\":{\"Requests\":{\"Cpu\":\"0.1\",\"Memory\":\"256Mi\"},\"Limits\":{\"Cpu\":\"4\",\"Memory\":\"2Gi\"}}},\"SecretPolicy\":{\"Enabled\":false}}",
+        "CreateTime": "2025-01-03 15:16:11.831684 +0800 CST",
+        "UpdateTime": "2025-01-03 15:32:36.052276 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      },
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "metrics-server",
+        "Version": "v0.7.1-vke.2",
+        "DeployMode": "Unmanaged",
+        "DeployNodeType": "VirtualNode",
+        "CreateTime": "2025-01-03 15:16:11.58893 +0800 CST",
+        "UpdateTime": "2025-01-03 15:32:49.59485 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      },
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "node-problem-detector",
+        "Version": "v0.8.19-vke.2",
+        "DeployMode": "Unmanaged",
+        "DeployNodeType": "Node",
+        "CreateTime": "2025-01-03 15:16:11.599817 +0800 CST",
+        "UpdateTime": "2025-01-03 15:16:11.599817 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      },
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "prometheus-agent",
+        "Version": "v2.9.0-vke.1.24",
+        "DeployMode": "Unmanaged",
+        "DeployNodeType": "VirtualNode",
+        "Config": "{\"NodeExporterDisabled\":false,\"AutoScalingEnabled\":false,\"VmAgent\":{\"InitShards\":1,\"Requests\":{\"Cpu\":\"2\",\"Memory\":\"2Gi\"},\"Limits\":{\"Cpu\":\"4\",\"Memory\":\"4Gi\"}},\"KubeStateMetrics\":{\"InitShards\":1,\"Requests\":{\"Cpu\":\"0.2\",\"Memory\":\"512Mi\"},\"Limits\":{\"Cpu\":\"0.8\",\"Memory\":\"2Gi\"}}}",
+        "CreateTime": "2025-01-03 15:16:11.806228 +0800 CST",
+        "UpdateTime": "2025-01-03 15:32:40.181477 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      },
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "scheduler-plugin",
+        "Version": "v1.0.9",
+        "DeployMode": "Managed",
+        "Config": "{\"NodePolicy\":\"spread\",\"ResourceWeights\":[{\"Name\":\"Cpu\",\"Weight\":1},{\"Name\":\"Memory\",\"Weight\":1}],\"PodTopologySpreadWeight\":2,\"GPUShareCardPolicy\":\"binpack\",\"GangSchedulingEnabled\":false,\"ResourcePolicySchedulingEnabled\":false,\"NodeAffinityWeight\":2}",
+        "CreateTime": "2025-01-03 15:16:11.610928 +0800 CST",
+        "UpdateTime": "2025-01-03 15:16:11.610928 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      },
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "snapshot-controller",
+        "Version": "v6.2.1-vke.1",
+        "DeployMode": "Unmanaged",
+        "DeployNodeType": "VirtualNode",
+        "CreateTime": "2025-01-03 15:16:11.426258 +0800 CST",
+        "UpdateTime": "2025-01-03 15:33:01.808352 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      },
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "vci-virtual-kubelet",
+        "Version": "v1.37.0",
+        "DeployMode": "Managed",
+        "CreateTime": "2025-01-03 15:16:11.752336 +0800 CST",
+        "UpdateTime": "2025-01-03 15:16:11.752336 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      },
+      {
+        "ClusterId": "cctrotent2pkb3m05slr0",
+        "Name": "vpc-cni",
+        "Version": "v1.7.9",
+        "DeployMode": "Unmanaged",
+        "DeployNodeType": "Node",
+        "CreateTime": "2025-01-03 15:16:10.669656 +0800 CST",
+        "UpdateTime": "2025-01-03 15:16:10.669656 +0800 CST",
+        "Status": {
+          "Phase": "Running",
+          "Conditions": [
+            {
+              "Type": "Ok"
+            }
+          ]
+        },
+        "CreateClientToken": "1942af15264-3381112588634027-cni",
+        "UpdateClientToken": "",
+        "ClusterType": ""
+      }
+    ],
+    "PageNumber": 1,
+    "PageSize": 100,
+    "TotalCount": 15
+  }
+}
