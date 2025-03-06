@@ -272,6 +272,64 @@ CLUSTER_CONFIGS = [
                 'key': 'purpose',
                 'value': 'production-workload'
             }]
+        },
+        {
+            'name': 'memory-optimized-pool',
+            'auto_scaling': {
+                'enabled': True,
+                'max_replicas': 5,
+                'min_replicas': 1,
+                'desired_replicas': 2,
+                'priority': 20,
+                'subnet_policy': 'ZoneBalance'
+            },
+            'node_config': {
+                'instance_type_ids': INSTANCE_TYPES['memory'],
+                'subnet_ids': SUBNET_IDS,
+                'security': {
+                    'security_group_ids': SECURITY_GROUP_IDS,
+                    'security_strategies': ['Hids']
+                },
+                'system_volume': {
+                    'size': 100,
+                    'type': 'ESSD_PL0'
+                },
+                'data_volumes': [{
+                    'size': 300,
+                    'type': 'ESSD_PL0',
+                    # 'file_system': 'Xfs',
+                    # 'mount_point': '/var/lib/containerd,/var/lib/kubelet'
+                }],
+                'initialize_script': 'SGVsbG8gZnJvbSBub2RlIGluaXRpYWxpemF0aW9u',
+                'additional_container_storage_enabled': True,
+                'name_prefix': 'memory',
+                'tags': [{
+                    'key': 'pool-type',
+                    'value': 'memory-optimized'
+                }]
+            },
+            'kubernetes_config': {
+                'labels': [
+                    {
+                        'key': 'node-role',
+                        'value': 'worker'
+                    },
+                    {
+                        'key': 'workload-type',
+                        'value': 'memory-intensive'
+                    }
+                ],
+                'taints': [{
+                    'key': 'memory-optimized',
+                    'value': 'true',
+                    'effect': 'PreferNoSchedule'
+                }],
+                'cordon': False
+            },
+            'tags': [{
+                'key': 'purpose',
+                'value': 'memory-optimized'
+            }]
         }
     ]
 }
