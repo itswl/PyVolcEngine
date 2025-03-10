@@ -73,18 +73,7 @@ class PostgreSQLManager:
                 storage_space=instance_config['instance']['storage_space'],
                 vpc_id=vpc_id,
                 subnet_id=subnet_id,
-                node_info=[
-                    {
-                        "NodeType": "Primary",
-                        "NodeSpec": instance_config['instance']['node_spec'],
-                        "ZoneId": instance_config['instance']['zone_id']
-                    },
-                    {
-                        "NodeType": "Secondary",
-                        "NodeSpec": instance_config['instance']['node_spec'],
-                        "ZoneId": instance_config['instance']['zone_id']
-                    }
-                ],
+                node_info=instance_config['instance']['node_info'],
                 charge_info={                       
                     "ChargeType": instance_config['instance']['charge_info']['charge_type'],
                     "PeriodUnit": instance_config['instance']['charge_info']['period_unit'],
@@ -203,19 +192,28 @@ class PostgreSQLManager:
         :param interval: 检查间隔（秒）
         :return: bool 是否成功
         """
+        time.sleep(interval)
         start_time = time.time()
         while True:
             try:
                 request = self.api.DescribeDBInstancesRequest()
                 response = self.client_api.describe_db_instances(request)
-                
+
+                # 检查响应中是否包含实例信息
+                instance_found = False
                 for instance in response.instances:
                     if instance.instance_id == instance_id:
+                        instance_found = True
                         if instance.instance_status == "Running":
                             print("实例已准备就绪")
                             return True
                         print(f"实例状态: {instance.instance_status}")
                         break
+                
+                # 如果没有找到实例信息，提前退出
+                if not instance_found:
+                    print(f"未找到实例 {instance_id} 的相关信息，退出等待")
+                    return False
                 
                 if time.time() - start_time > timeout:
                     print("等待实例就绪超时")

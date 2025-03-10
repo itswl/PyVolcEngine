@@ -9,7 +9,7 @@ from configs.api_config import api_config, timeout_config
 from configs.network_config import network_config
 from vpc_manager import VPCManager
 from whitelist_manager import MongoDBWhitelistManager
-from configs.optimized_mongodb_configs import instance_configs
+from configs.mongodb_configs import instance_configs
 
 import os
 # 确保logs目录存在
