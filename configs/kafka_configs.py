@@ -3,7 +3,7 @@
 instance_configs = [
     {
         "instance": {
-            "name": "test-kafka",
+            "name": "her-dev-kafka",
             "product_id": "kafka.20xrate.hw",  # Kafka规格
             "zone_id": "cn-shanghai-a,cn-shanghai-b,cn-shanghai-c",  # 可用区
             "storage_size": 300,  # 存储大小，单位GB
@@ -12,6 +12,8 @@ instance_configs = [
             "compute_spec": "kafka.20xrate.hw",  # 计算规格，表示2核4G
             "storage_type": "ESSD_FlexPL",  # 存储类型
             "version": "2.8.2",  # Kafka版本
+            'vpc_id': 'vpc-22j75iztkwo3k7r2qr1czeq8b',
+            "subnet_id": 'subnet-3qd8s8xald8n47prml147n61j',
             "vpc": {
                 "name": "kafka-vpc",
                 "cidr_block": "172.16.0.0/16",
@@ -53,7 +55,7 @@ instance_configs = [
                 "host": "*"  # 主机，*表示所有
             }
         ],
-        "eip": "kafka-eip",  # 使用EIP配置名称，对应eip_config.py中的配置
+        "eip": "her-dev-kafka",  # 使用EIP配置名称，对应eip_config.py中的配置
         "whitelists": ["default-whitelist", "office-whitelist", "vpc-whitelist"]  # 使用白名单配置名称列表，对应whitelist_config.py中的配置
     }
 ]

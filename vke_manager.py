@@ -20,6 +20,25 @@ from volcenginesdkvke.models.list_addons_request import ListAddonsRequest
 from configs.vke_configs import CLUSTER_CONFIGS
 from configs.api_config import api_config
 
+import logging
+# 确保logs目录存在
+log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+os.makedirs(log_dir, exist_ok=True)
+
+# 配置日志记录
+# 添加文件处理器
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+file_handler = logging.FileHandler(os.path.join(log_dir, 'vke_manager.log'))
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(file_handler)
+
+
+
 class VKEManager:
     """VKE管理类，包含集群、节点池和组件管理功能"""
     
@@ -56,20 +75,21 @@ class VKEManager:
             try:
                 list_clusters_request = ListClustersRequest()
                 clusters_response = self.vke_api.list_clusters(list_clusters_request)
-                # print(clusters_response)
+                # logger.info(clusters_response)
                 if clusters_response and clusters_response.items:
                     for cluster in clusters_response.items:
-                        # print('=======')
-                        print(cluster.status.phase)
+                        # logger.info('=======')
+                        # logger.info(cluster.status.phase)
+                        # logger.info(cluster.id)
                         if cluster.id == cluster_id and cluster.status.phase == 'Running':
-                            print('集群已就绪')
+                            logger.info('集群已就绪')
                             return True
-                print(f'等待集群就绪中，已等待 {int(time.time() - start_time)} 秒...')
+                logger.info(f'等待集群就绪中，已等待 {int(time.time() - start_time)} 秒...')
                 time.sleep(interval)
             except Exception as e:
-                print(f'检查集群状态时发生错误: {str(e)}')
+                logger.info(f'检查集群状态时发生错误: {str(e)}')
                 time.sleep(interval)
-        print(f'等待集群就绪超时，已等待 {timeout} 秒')
+        logger.info(f'等待集群就绪超时，已等待 {timeout} 秒')
         return False
     
     def create_clusters(self):
@@ -128,7 +148,7 @@ class VKEManager:
                         break
             
             if existing_cluster:
-                print(f'找到已存在的同名集群，ID: {existing_cluster.id}')
+                logger.info(f'找到已存在的同名集群，ID: {existing_cluster.id}')
                 return existing_cluster.id
             
             # 创建新集群
@@ -178,13 +198,13 @@ class VKEManager:
                 log_ttl=30,
                 log_type="CloudControllerManager"
             )
-            req_log_setups5 = volcenginesdkvke.LogSetupForCreateClusterInput(
-                enabled=True,
-                log_ttl=30,
-                log_type="Etcd"
-            )
+            # req_log_setups5 = volcenginesdkvke.LogSetupForCreateClusterInput(
+            #     enabled=True,
+            #     log_ttl=30,
+            #     log_type="Etcd"
+            # )
             req_logging_config = volcenginesdkvke.LoggingConfigForCreateClusterInput(
-                log_setups=[req_log_setups, req_log_setups1, req_log_setups2, req_log_setups3, req_log_setups4, req_log_setups5]
+                log_setups=[req_log_setups, req_log_setups1, req_log_setups2, req_log_setups3, req_log_setups4]
             )
 
             cluster_request = CreateClusterRequest(
@@ -209,12 +229,12 @@ class VKEManager:
             )
             
             cluster_response = self.vke_api.create_cluster(cluster_request)
-            print(cluster_response)
+            logger.info(cluster_response)
             cluster_id = cluster_response.id
-            print(f'集群创建成功，ID: {cluster_id}')
+            logger.info(f'集群创建成功，ID: {cluster_id}')
             return cluster_id
         except Exception as e:
-            print(f'创建集群时发生错误: {str(e)}')
+            logger.info(f'创建集群时发生错误: {str(e)}')
             return None
     
     def create_node_pool(self, cluster_id, node_pool_config=None):
@@ -233,7 +253,7 @@ class VKEManager:
                 # 从集群配置中获取节点池配置
                 list_clusters_request = ListClustersRequest()
                 clusters_response = self.vke_api.list_clusters(list_clusters_request)
-                
+
                 if clusters_response and clusters_response.items:
                     for cluster in clusters_response.items:
                         if cluster.id == cluster_id:
@@ -260,12 +280,13 @@ class VKEManager:
             if node_pools_response and node_pools_response.items:
                 for node_pool in node_pools_response.items:
                     if node_pool.name == node_pool_config['name']:
-                        print(f'找到已存在的同名节点池，ID: {node_pool.id}')
+                        logger.info(f'找到已存在的同名节点池，ID: {node_pool.id}')
                         return node_pool.id
             
             # 创建登录配置
+
             req_login = volcenginesdkvke.LoginForCreateNodePoolInput(
-                password = 'TnNAU2hlbnpoZW4yMDI0'
+                password = node_pool_config['node_config']['security']['password'],
             )
             
             # 创建安全配置
@@ -276,7 +297,12 @@ class VKEManager:
             )
             
             # 创建节点配置
+
             req_node_config = volcenginesdkvke.NodeConfigForCreateNodePoolInput(
+                instance_charge_type=node_pool_config['node_config']['instance_charge_type'],
+                auto_renew=True,
+                auto_renew_period=1,
+                period=1,
                 security=req_security,
                 instance_type_ids=node_pool_config['node_config']['instance_type_ids'],
                 subnet_ids=node_pool_config['node_config']['subnet_ids'],
@@ -329,17 +355,17 @@ class VKEManager:
                     value=tag['value']
                 ) for tag in node_pool_config['tags']]
             )
-            # print(node_pool_request)
+            # logger.info(node_pool_request)
             node_pool_response = self.vke_api.create_node_pool(node_pool_request)
-            # print(node_pool_response)
+            # logger.info(node_pool_response)
             if node_pool_response and node_pool_response.id:
-                print(f'节点池创建成功，ID: {node_pool_response.id}')
+                logger.info(f'节点池创建成功，ID: {node_pool_response.id}')
                 return node_pool_response.id
             else:
-                print('创建节点池失败：API响应不完整')
+                logger.info('创建节点池失败：API响应不完整')
                 return None
         except Exception as e:
-            print(f'创建节点池时发生错误: {str(e)}')
+            logger.info(f'创建节点池时发生错误: {str(e)}')
             return None
             
     def create_node_pools(self, cluster_id):
@@ -367,13 +393,12 @@ class VKEManager:
                             cluster_config = config
                             break
                     break
-        
+
         if cluster_config is None or 'node_pools' not in cluster_config:
-            print('未找到集群对应的节点池配置')
+            logger.info('未找到集群对应的节点池配置')
             return results
         
         for node_pool_config in cluster_config['node_pools']:
-
             try:
                 # 创建节点池
                 node_pool_id = self.create_node_pool(cluster_id, node_pool_config)
@@ -424,20 +449,22 @@ class VKEManager:
                     valid_duration=867240
                 )
                 create_response = self.vke_api.create_kubeconfig(create_kubeconfig_request)
-                print('成功创建新的kubeconfig')
+                logger.info('成功创建新的kubeconfig')
                 
                 # 重新获取创建的kubeconfig
                 kubeconfig_response = self.vke_api.list_kubeconfigs(kubeconfig_request)
             
             if kubeconfig_response and kubeconfig_response.items:
-                # print(kubeconfig_response)
+                # logger.info(kubeconfig_response)
                 for kubeconfig in kubeconfig_response.items:
-                    print(kubeconfig.kubeconfig)  # 使用正确的属性名
+                    # kubeconfig =
+                    logger.info('\n\necho ' + kubeconfig.kubeconfig + ' |base64 -d > /tmp/kubeconfig;export KUBECONFIG=/tmp/kubeconfig;kubectl get nodes\n')  # 使用正确的属性名
+
                 return True
-            print('未找到集群的kubeconfig配置')
+            logger.info('未找到集群的kubeconfig配置')
             return False
         except Exception as e:
-            print(f'获取kubeconfig时发生错误: {str(e)}')
+            logger.info(f'获取kubeconfig时发生错误: {str(e)}')
             return False
     
     def list_addons(self, cluster_id):
@@ -457,7 +484,7 @@ class VKEManager:
             response = self.vke_api.list_addons(request)
             return response
         except ApiException as e:
-            print(f"获取组件列表失败: {e}")
+            logger.info(f"获取组件列表失败: {e}")
             return None
     
     def install_addon(self, cluster_id, name, version, deploy_mode, deploy_node_type=None, config=None):
@@ -486,16 +513,16 @@ class VKEManager:
                 create_addon_request.deploy_node_type = deploy_node_type
             if config:
                 create_addon_request.config = config
-                
+            print(create_addon_request)  
             response = self.vke_api.create_addon(create_addon_request)
-            print(f"组件 {name} 安装请求已提交")
+            logger.info(f"组件 {name} 安装请求已提交")
             return True
         except ApiException as e:
             # 检查是否为组件已存在的错误
             if e.status == 409 and 'AlreadyExists.Name' in str(e):
-                print(f"组件 {name} 已存在，跳过安装")
+                logger.info(f"组件 {name} 已存在，跳过安装")
                 return True
-            print(f"安装组件 {name} 失败: {e}")
+            logger.info(f"安装组件 {name} 失败: {e}")
             return False
     
     def install_standard_addons(self, cluster_id):
@@ -526,7 +553,7 @@ class VKEManager:
         # 安装缺失的组件
         for addon in standard_addons:
             if addon["name"] in existing_addon_names:
-                print(f"组件 {addon['name']} 已存在，跳过安装")
+                logger.info(f"组件 {addon['name']} 已存在，跳过安装")
                 continue
                 
             success = self.install_addon(
@@ -563,11 +590,14 @@ class VKEManager:
             with open(log_file, 'r') as f:
                 log_data = json.load(f)
             
+            # 导入SUBNET_IDS用于替换配置中的子网ID
+            from configs.vke_configs import SUBNET_IDS
+            
             # 提取组件列表
             addons = log_data.get("Result", {}).get("Items", [])
-            # print(addons)
+            # logger.info(addons)
             if not addons:
-                print("未在日志文件中找到组件列表")
+                logger.info("未在日志文件中找到组件列表")
                 return {"success": [], "failed": []}
             
             results = {
@@ -583,19 +613,49 @@ class VKEManager:
             
             # 安装组件
             for addon in addons:
-                # print(addon)
+                # logger.info(addon)
                 name = addon.get("Name")
                 if name in existing_addon_names:
-                    print(f"组件 {name} 已存在，跳过安装")
+                    logger.info(f"组件 {name} 已存在，跳过安装")
                     continue
                     
+                # 处理组件配置，替换SubnetId
+                config = addon.get("Config")
+                if config:
+                    try:
+                        # 解析配置JSON字符串
+                        config_dict = json.loads(config)
+                        
+                        # 检查并替换SubnetId
+                        # 处理顶层的SubnetId
+                        if 'SubnetId' in config_dict:
+                            logger.info(f"替换组件 {name} 配置中的SubnetId")
+                            config_dict['SubnetId'] = SUBNET_IDS[0]
+                        
+                        # 处理嵌套在PublicNetwork中的SubnetId
+                        if 'PublicNetwork' in config_dict and 'SubnetId' in config_dict['PublicNetwork']:
+                            logger.info(f"替换组件 {name} 的PublicNetwork.SubnetId")
+                            config_dict['PublicNetwork']['SubnetId'] = SUBNET_IDS[0]
+                        
+                        # 处理其他可能的嵌套路径
+                        for key, value in config_dict.items():
+                            if isinstance(value, dict) and 'SubnetId' in value:
+                                logger.info(f"替换组件 {name} 的{key}.SubnetId")
+                                value['SubnetId'] = SUBNET_IDS[0]
+                        
+                        # 将修改后的配置转回JSON字符串
+                        config = json.dumps(config_dict)
+                        logger.info(f"组件 {name} 配置已更新")
+                    except json.JSONDecodeError as e:
+                        logger.info(f"解析组件 {name} 配置时出错: {e}，使用原始配置")
+                
                 # 准备组件配置
                 addon_config = {
                     "name": name,
                     "version": addon.get("Version"),
                     "deploy_mode": addon.get("DeployMode"),
                     "deploy_node_type": addon.get("DeployNodeType"),
-                    "config": addon.get("Config")
+                    "config": config
                 }
                 
                 # 安装组件
@@ -618,7 +678,7 @@ class VKEManager:
             
             return results
         except Exception as e:
-            print(f"从日志文件安装组件时发生错误: {e}")
+            logger.info(f"从日志文件安装组件时发生错误: {e}")
             return {"success": [], "failed": [], "error": str(e)}
 
 
@@ -635,58 +695,58 @@ def main():
     # 步骤1: 创建或获取多个集群
     clusters_result = vke_manager.create_clusters()
     if not clusters_result:
-        print("创建集群失败")
+        logger.info("创建集群失败")
         return
         
     # 打印集群创建结果
     for cluster_name, result in clusters_result.items():
         if result['status'] == 'created':
-            print(f'成功创建集群 {cluster_name}，ID: {result["cluster_id"]}')
+            logger.info(f'成功创建集群 {cluster_name}，ID: {result["cluster_id"]}')
         else:
-            print(f'创建集群 {cluster_name} 失败: {result.get("error", "未知错误")}')
+            logger.info(f'创建集群 {cluster_name} 失败: {result.get("error", "未知错误")}')
     
     # 步骤2: 对每个成功创建的集群执行后续操作
     for cluster_name, cluster_result in clusters_result.items():
-        print(cluster_result)
+        logger.info(cluster_result)
         if cluster_result['status'] != 'created':
             continue
             
         cluster_id = cluster_result['cluster_id']
-        print(f"\n开始处理集群: {cluster_name} (ID: {cluster_id})")
+        logger.info(f"\n开始处理集群: {cluster_name} (ID: {cluster_id})")
         
         # 等待集群就绪
         if not vke_manager.wait_for_cluster_ready(cluster_id):
-            print(f"集群 {cluster_name} 未能在预期时间内就绪，跳过后续操作")
+            logger.info(f"集群 {cluster_name} 未能在预期时间内就绪，跳过后续操作")
             continue
         
         # 创建多个节点池
         node_pools_result = vke_manager.create_node_pools(cluster_id)
         if not node_pools_result:
-            print(f"为集群 {cluster_name} 创建节点池失败")
+            logger.info(f"为集群 {cluster_name} 创建节点池失败")
             continue
             
         for name, result in node_pools_result.items():
             if result['status'] == 'created':
-                print(f'成功创建节点池 {name}，ID: {result["node_pool_id"]}')
+                logger.info(f'成功创建节点池 {name}，ID: {result["node_pool_id"]}')
             else:
-                print(f'创建节点池 {name} 失败: {result.get("error", "未知错误")}')
+                logger.info(f'创建节点池 {name} 失败: {result.get("error", "未知错误")}')
     
         # 获取集群kubeconfig
         if not vke_manager.get_cluster_kubeconfig(cluster_id):
-            print(f"获取集群 {cluster_name} 的kubeconfig失败")
+            logger.info(f"获取集群 {cluster_name} 的kubeconfig失败")
             continue
             
         # # 安装标准组件
         # results = vke_manager.install_standard_addons(cluster_id)
-        # print(f"集群 {cluster_name} 标准组件安装结果: {results}")
+        # logger.info(f"集群 {cluster_name} 标准组件安装结果: {results}")
         
         # 从日志文件安装额外组件（可选）
         log_file = "listaddon.log"  # 替换为实际的日志文件路径
         if os.path.exists(log_file):
             results = vke_manager.install_addons_from_log(log_file, cluster_id)
-            print(f"集群 {cluster_name} 从日志文件安装组件结果: {results}")
+            logger.info(f"集群 {cluster_name} 从日志文件安装组件结果: {results}")
             
-        print(f"集群 {cluster_name} 处理完成\n")
+        logger.info(f"集群 {cluster_name} 处理完成\n")
 
 
 if __name__ == "__main__":

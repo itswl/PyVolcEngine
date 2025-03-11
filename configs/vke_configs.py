@@ -3,334 +3,272 @@
 
 
 # 共享的VPC ID配置
-VPC_ID = 'vpc-13g1af5mu1iio3n6nu4i4sqzp'
+VPC_ID = 'vpc-22j75iztkwo3k7r2qr1czeq8b'
 
 # 共享的子网ID配置，用不同请手动修改
 SUBNET_IDS = [
-    'subnet-13g1aq29zgfls3n6nu564lbef',
-    'subnet-miw612h20t8g5smt1bwxqbot',
-    'subnet-miw5w8uc3zeo5smt1bwme4wm'
+    'subnet-5gfoskjvbhts73inqkkgo6ow',
+    'subnet-3qd8s8xald8n47prml147n61j',
+    'subnet-22j75kf4du3gg7r2qr1mupd66'
 ]
 
 # 共享的安全组ID配置
-SECURITY_GROUP_IDS = ['sg-13g1afdiyhqf43n6nu4yijbgc']
+SECURITY_GROUP_IDS = ['sg-22j75j5qo8u0w7r2qr1r5yieo']
 
 # 实例类型配置
 INSTANCE_TYPES = {
-    'compute': ['ecs.c3a.4xlarge'],  # 计算型实例
-    'memory': ['ecs.c3a.2xlarge'],  # 内存优化型实例
-    'general': ['ecs.c3a.4xlarge'],  # 通用型实例
-    'production': ['ecs.c3a.4xlarge']  # 生产环境实例
+    'node-default': ['ecs.c3a.4xlarge'],  # 默认配置
+    'node-edge': ['ecs.c3a.2xlarge'],     # edge 节点配置
 }
 
 # VKE集群配置列表
 CLUSTER_CONFIGS = [
-{
-    'name': 'test-dev-k8s',
-    'description': '',
-    'kubernetes_version': '1.28',
-    'vpc_id': VPC_ID,
-    'delete_protection_enabled': True,
-    'cluster_config': {
-        'subnet_ids': SUBNET_IDS,
-        'api_server_public_access_enabled': True,
-        'api_server_public_access_config': {
-            'public_access_network_config': {
-                'billing_type': 3,
-                'bandwidth': 10,
-                'isp': 'BGP'
+    {
+        'name': 'ns-hs-sh-dev-k8s',
+        'description': '',
+        'kubernetes_version': '1.28',
+        'vpc_id': VPC_ID,
+        'delete_protection_enabled': True,
+        
+        # 集群网络配置
+        'cluster_config': {
+            'subnet_ids': SUBNET_IDS,
+            'api_server_public_access_enabled': True,
+            'api_server_public_access_config': {
+                'public_access_network_config': {
+                    'billing_type': 3,
+                    'bandwidth': 10,
+                    'isp': 'BGP'
+                }
+            },
+            'resource_public_access_default_enabled': True
+        },
+        
+        # Pod网络配置
+        'pods_config': {
+            'pod_network_mode': 'VpcCniShared',
+            'vpc_cni_config': {
+                'subnet_ids': SUBNET_IDS,
+                'trunk_eni_enabled': False
             }
         },
-        'resource_public_access_default_enabled': True
-    },
-    'pods_config': {
-        'pod_network_mode': 'VpcCniShared',
-        'vpc_cni_config': {
-            'subnet_ids': SUBNET_IDS,
-            'trunk_eni_enabled': False
-        }
-    },
-    'services_config': {
-        'service_cidrsv4': ['172.27.0.0/17']
-    },
-    'kubernetes_config': {
-        'cluster_domain': 'cluster.local',
-        'control_plane_config': {
-            'kube_api_server_config': {
-                'admission_plugins': {
-                    'always_pull_images': True
+        
+        # Service网络配置
+        'services_config': {
+            'service_cidrsv4': ['172.28.0.0/17']
+        },
+        
+        # Kubernetes配置
+        'kubernetes_config': {
+            'cluster_domain': 'cluster.local',
+            'control_plane_config': {
+                'kube_api_server_config': {
+                    'admission_plugins': {
+                        'always_pull_images': True
+                    }
                 }
             }
-        }
-    },
-    'node_pools': [
-        # 通用计算节点池
-        {
-            'name': 'general-compute-pool',
-            'auto_scaling': {
-                'enabled': True,
-                'max_replicas': 10,
-                'min_replicas': 2,
-                'desired_replicas': 2,
-                'priority': 10,
-                'subnet_policy': 'ZoneBalance'
-            },
-            'node_config': {
-                'instance_type_ids': INSTANCE_TYPES['compute'],
-                'subnet_ids': SUBNET_IDS,
-                'security': {
-                    'security_group_ids': SECURITY_GROUP_IDS,
-                    'security_strategies': ['Hids']
-                },
-                'system_volume': {
-                    'size': 100,
-                    'type': 'ESSD_PL0'
-                },
-                'data_volumes': [{
-                    'size': 200,
-                    'type': 'ESSD_PL0',
-                    # 'file_system': 'Xfs',
-                    # 'mount_point': '/var/lib/containerd,/var/lib/kubelet'
-                }],
-                'initialize_script': 'SGVsbG8gZnJvbSBub2RlIGluaXRpYWxpemF0aW9u',
-                'additional_container_storage_enabled': True,
-                'name_prefix': 'compute',
-                'tags': [{
-                    'key': 'pool-type',
-                    'value': 'compute'
-                }]
-            },
-            'kubernetes_config': {
-                'labels': [
-                    {
-                        'key': 'node-role',
-                        'value': 'worker'
-                    },
-                    {
-                        'key': 'workload-type',
-                        'value': 'general'
-                    }
-                ],
-                'taints': [],
-                'cordon': False
-            },
-            'tags': [{
-                'key': 'purpose',
-                'value': 'general-compute'
-            }]
         },
-        # 内存优化节点池
-        {
-            'name': 'memory-optimized-pool',
-            'auto_scaling': {
-                'enabled': True,
-                'max_replicas': 5,
-                'min_replicas': 1,
-                'desired_replicas': 2,
-                'priority': 20,
-                'subnet_policy': 'ZoneBalance'
-            },
-            'node_config': {
-                'instance_type_ids': INSTANCE_TYPES['memory'],
-                'subnet_ids': SUBNET_IDS,
-                'security': {
-                    'security_group_ids': SECURITY_GROUP_IDS,
-                    'security_strategies': ['Hids']
+        
+        # 节点池配置
+        'node_pools': [
+            # 通用计算节点池 - 自动伸缩
+            {
+                'name': 'auto-pool',
+                'auto_scaling': {
+                    'enabled': True,
+                    'max_replicas': 10,
+                    'min_replicas': 1,
+                    'desired_replicas': 1,
+                    'priority': 10,
+                    'subnet_policy': 'ZoneBalance'
                 },
-                'system_volume': {
-                    'size': 100,
-                    'type': 'ESSD_PL0'
-                },
-                'data_volumes': [{
-                    'size': 300,
-                    'type': 'ESSD_PL0',
-                    # 'file_system': 'Xfs',
-                    # 'mount_point': '/var/lib/containerd,/var/lib/kubelet'
-                }],
-                'initialize_script': 'SGVsbG8gZnJvbSBub2RlIGluaXRpYWxpemF0aW9u',
-                'additional_container_storage_enabled': True,
-                'name_prefix': 'memory',
-                'tags': [{
-                    'key': 'pool-type',
-                    'value': 'memory-optimized'
-                }]
-            },
-            'kubernetes_config': {
-                'labels': [
-                    {
-                        'key': 'node-role',
-                        'value': 'worker'
+                'node_config': {
+                    'instance_charge_type': 'PostPaid',
+                    'instance_type_ids': INSTANCE_TYPES['node-default'],
+                    'subnet_ids': SUBNET_IDS,
+                    'security': {
+                        'security_group_ids': SECURITY_GROUP_IDS,
+                        'security_strategies': ['Hids'],
+                        'password': 'TnNAU2hlbnpoZW4yMDI0'
                     },
+                    'system_volume': {
+                        'size': 100,
+                        'type': 'ESSD_PL0'
+                    },
+                    'data_volumes': [
+                        {
+                            'size': 400,
+                            'type': 'ESSD_PL0',
+                            # 'file_system': 'Xfs',
+                            # 'mount_point': '/var/lib/containerd,/var/lib/kubelet'
+                        }
+                    ],
+                    'initialize_script': 'SGVsbG8gZnJvbSBub2RlIGluaXRpYWxpemF0aW9u',
+                    'additional_container_storage_enabled': True,
+                    'name_prefix': 'auto',
+                    'tags': [
+                        {
+                            'key': 'pool-type',
+                            'value': 'node-default'
+                        }
+                    ]
+                },
+                'kubernetes_config': {
+                    'labels': [
+                        {
+                            'key': 'node-role',
+                            'value': 'worker'
+                        },
+                        {
+                            'key': 'workload-type',
+                            'value': 'general'
+                        }
+                    ],
+                    'taints': [],
+                    'cordon': False
+                },
+                'tags': [
                     {
-                        'key': 'workload-type',
-                        'value': 'memory-intensive'
+                        'key': 'purpose',
+                        'value': 'general-compute'
                     }
-                ],
-                'taints': [{
-                    'key': 'memory-optimized',
-                    'value': 'true',
-                    'effect': 'PreferNoSchedule'
-                }],
-                'cordon': False
+                ]
             },
-            'tags': [{
-                'key': 'purpose',
-                'value': 'memory-optimized'
-            }]
-        }
+            
+            # 通用计算节点池 - 固定节点数
+            {
+                'name': 'default-pool',
+                'auto_scaling': {
+                    'enabled': False,
+                    'max_replicas': 10,
+                    'min_replicas': 2,
+                    'desired_replicas': 2,
+                    'priority': 10,
+                    'subnet_policy': 'ZoneBalance'
+                },
+                'node_config': {
+                    'instance_charge_type': 'PrePaid',
+                    'instance_type_ids': INSTANCE_TYPES['node-default'],
+                    'subnet_ids': SUBNET_IDS,
+                    'security': {
+                        'security_group_ids': SECURITY_GROUP_IDS,
+                        'security_strategies': ['Hids'],
+                        'password': 'TnNAU2hlbnpoZW4yMDI0'
+                    },
+                    'system_volume': {
+                        'size': 100,
+                        'type': 'ESSD_PL0'
+                    },
+                    'data_volumes': [
+                        {
+                            'size': 400,
+                            'type': 'ESSD_PL0',
+                            # 'file_system': 'Xfs',
+                            # 'mount_point': '/var/lib/containerd,/var/lib/kubelet'
+                        }
+                    ],
+                    'initialize_script': 'SGVsbG8gZnJvbSBub2RlIGluaXRpYWxpemF0aW9u',
+                    'additional_container_storage_enabled': True,
+                    'name_prefix': 'default',
+                    'tags': [
+                        {
+                            'key': 'pool-type',
+                            'value': 'node-default'
+                        }
+                    ]
+                },
+                'kubernetes_config': {
+                    'labels': [
+                        {
+                            'key': 'node-role',
+                            'value': 'worker'
+                        },
+                        {
+                            'key': 'workload-type',
+                            'value': 'general'
+                        }
+                    ],
+                    'taints': [],
+                    'cordon': False
+                },
+                'tags': [
+                    {
+                        'key': 'purpose',
+                        'value': 'general-compute'
+                    }
+                ]
+            },
+            
+            # edge 节点池
+            {
+                'name': 'edge-pool',
+                'auto_scaling': {
+                    'enabled': True,
+                    'max_replicas': 5,
+                    'min_replicas': 1,
+                    'desired_replicas': 2,
+                    'priority': 20,
+                    'subnet_policy': 'ZoneBalance'
+                },
+                'node_config': {
+                    'instance_charge_type': 'PostPaid',
+                    'instance_type_ids': INSTANCE_TYPES['node-edge'],
+                    'subnet_ids': SUBNET_IDS,
+                    'security': {
+                        'security_group_ids': SECURITY_GROUP_IDS,
+                        'security_strategies': ['Hids'],
+                        'password': 'TnNAU2hlbnpoZW4yMDI0'
+                    },
+                    'system_volume': {
+                        'size': 40,
+                        'type': 'ESSD_PL0'
+                    },
+                    'data_volumes': [
+                        {
+                            'size': 100,
+                            'type': 'ESSD_PL0',
+                            # 'file_system': 'Xfs',
+                            # 'mount_point': '/var/lib/containerd,/var/lib/kubelet'
+                        }
+                    ],
+                    'initialize_script': 'SGVsbG8gZnJvbSBub2RlIGluaXRpYWxpemF0aW9u',
+                    'additional_container_storage_enabled': True,
+                    'name_prefix': 'edge',
+                    'tags': [
+                        {
+                            'key': 'pool-type',
+                            'value': 'node-edge-optimized'
+                        }
+                    ]
+                },
+                'kubernetes_config': {
+                    'labels': [
+                        {
+                            'key': 'node-role',
+                            'value': 'worker'
+                        },
+                        {
+                            'key': 'workload-type',
+                            'value': 'node-edge-intensive'
+                        }
+                    ],
+                    'taints': [
+                        {
+                            'key': 'bind-eip',
+                            'value': 'yes',
+                            'effect': 'NoSchedule'
+                        }
+                    ],
+                    'cordon': False
+                },
+                'tags': [
+                    {
+                        'key': 'purpose',
+                        'value': 'node-edge-optimized'
+                    }
+                ]
+            }
         ]
-},
-# 第二个集群配置
-{
-    'name': 'test2-dev-k8s',
-    'description': 'Production Kubernetes Cluster',
-    'kubernetes_version': '1.28',
-    'vpc_id': VPC_ID,
-    'delete_protection_enabled': True,
-    'cluster_config': {
-        'subnet_ids': SUBNET_IDS,
-        'api_server_public_access_enabled': True,
-        'api_server_public_access_config': {
-            'public_access_network_config': {
-                'billing_type': 3,
-                'bandwidth': 20,
-                'isp': 'BGP'
-            }
-        },
-        'resource_public_access_default_enabled': True
-    },
-    'pods_config': {
-        'pod_network_mode': 'VpcCniShared',
-        'vpc_cni_config': {
-            'subnet_ids': SUBNET_IDS,
-            'trunk_eni_enabled': False
-        }
-    },
-    'services_config': {
-        'service_cidrsv4': ['172.28.0.0/17']
-    },
-    'kubernetes_config': {
-        'cluster_domain': 'cluster.local',
-        'control_plane_config': {
-            'kube_api_server_config': {
-                'admission_plugins': {
-                    'always_pull_images': True
-                }
-            }
-        }
-    },
-    'node_pools': [
-        # 生产环境通用计算节点池
-        {
-            'name': 'prod-compute-pool',
-            'auto_scaling': {
-                'enabled': True,
-                'max_replicas': 20,
-                'min_replicas': 3,
-                'desired_replicas': 5,
-                'priority': 10,
-                'subnet_policy': 'ZoneBalance'
-            },
-            'node_config': {
-                'instance_type_ids': INSTANCE_TYPES['production'],
-                'subnet_ids': SUBNET_IDS,
-                'security': {
-                    'security_group_ids': SECURITY_GROUP_IDS,
-                    'security_strategies': ['Hids']
-                },
-                'system_volume': {
-                    'size': 200,
-                    'type': 'ESSD_PL1'
-                },
-                'data_volumes': [{
-                    'size': 500,
-                    'type': 'ESSD_PL1'
-                }],
-                'initialize_script': 'SGVsbG8gZnJvbSBub2RlIGluaXRpYWxpemF0aW9u',
-                'additional_container_storage_enabled': True,
-                'name_prefix': 'prod',
-                'tags': [{
-                    'key': 'env',
-                    'value': 'production'
-                }]
-            },
-            'kubernetes_config': {
-                'labels': [
-                    {
-                        'key': 'node-role',
-                        'value': 'worker'
-                    },
-                    {
-                        'key': 'env',
-                        'value': 'production'
-                    }
-                ],
-                'taints': [],
-                'cordon': False
-            },
-            'tags': [{
-                'key': 'purpose',
-                'value': 'production-workload'
-            }]
-        },
-        {
-            'name': 'memory-optimized-pool',
-            'auto_scaling': {
-                'enabled': True,
-                'max_replicas': 5,
-                'min_replicas': 1,
-                'desired_replicas': 2,
-                'priority': 20,
-                'subnet_policy': 'ZoneBalance'
-            },
-            'node_config': {
-                'instance_type_ids': INSTANCE_TYPES['memory'],
-                'subnet_ids': SUBNET_IDS,
-                'security': {
-                    'security_group_ids': SECURITY_GROUP_IDS,
-                    'security_strategies': ['Hids']
-                },
-                'system_volume': {
-                    'size': 100,
-                    'type': 'ESSD_PL0'
-                },
-                'data_volumes': [{
-                    'size': 300,
-                    'type': 'ESSD_PL0',
-                    # 'file_system': 'Xfs',
-                    # 'mount_point': '/var/lib/containerd,/var/lib/kubelet'
-                }],
-                'initialize_script': 'SGVsbG8gZnJvbSBub2RlIGluaXRpYWxpemF0aW9u',
-                'additional_container_storage_enabled': True,
-                'name_prefix': 'memory',
-                'tags': [{
-                    'key': 'pool-type',
-                    'value': 'memory-optimized'
-                }]
-            },
-            'kubernetes_config': {
-                'labels': [
-                    {
-                        'key': 'node-role',
-                        'value': 'worker'
-                    },
-                    {
-                        'key': 'workload-type',
-                        'value': 'memory-intensive'
-                    }
-                ],
-                'taints': [{
-                    'key': 'memory-optimized',
-                    'value': 'true',
-                    'effect': 'PreferNoSchedule'
-                }],
-                'cordon': False
-            },
-            'tags': [{
-                'key': 'purpose',
-                'value': 'memory-optimized'
-            }]
-        }
-    ]
-}
+    }
 ]

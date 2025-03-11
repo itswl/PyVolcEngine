@@ -4,7 +4,7 @@
 instance_configs = [
     {
         "instance": {
-            "name": "optimized-mongo",
+            "name": "her-dev-mongo",
             "engine_version": "MongoDB_6_0",
             "db_engine": "MongoDB",
             "storage_type": "LocalSSD",
@@ -20,8 +20,10 @@ instance_configs = [
             "node_spec": "mongo.shard.1c2g",  # 参考现有实例配置
             "shard_number": 2,  # 参考现有实例配置的2个分片
             "super_account_name": "root",
-            "super_account_password": "Test@123456",
+            "super_account_password": "ns2024Xqrif848",
             "SpecType": "GENERAL",
+            'vpc_id': 'vpc-22j75iztkwo3k7r2qr1czeq8b',
+            "subnet_id": 'subnet-5gfoskjvbhts73inqkkgo6ow',
             "vpc": {
                 "name": "mongodb-vpc",
                 "cidr_block": "172.16.0.0/16",
@@ -51,7 +53,8 @@ instance_configs = [
                 "period": 1,
                 "auto_renew": True  # 参考现有实例的自动续费设置
             }
-        },
+        },  
+        # 未实现
         "databases": [
             {
                 "name": "testdb",
@@ -63,19 +66,22 @@ instance_configs = [
                 ]
             }
         ],
+         # 未实现
         "accounts": [
             {
                 "username": "admin",
-                "password": "Admin123456",
+                "password": "ns2024Xqrif848",
                 "account_type": "Super"
             }
         ],
+         # 未实现
         "backup": {
             "retention_period": 7,
             "full_backup_period": "Monday,Thursday",
             "full_backup_time": "03:00-04:00",
             "increment_backup_frequency": "Every_6_Hours"
         },
-        "eip": "test-mongodb-eip"
+        "eip": "her-dev-mongodb",
+        "whitelists": ["wan_server", "wan_office", "lan"]
     }
 ]

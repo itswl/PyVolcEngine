@@ -4,7 +4,7 @@
 instance_configs = [
     {
         "instance": {
-            "name": "test-es2",
+            "name": "her-dev-es",
             "version": "V7_10",
             "zone_id": "cn-shanghai-a,cn-shanghai-b",
             "instance_type": "es.standard",
@@ -20,6 +20,8 @@ instance_configs = [
             "kibana_node_number": 1,
             "kibana_node_spec": "kibana.x2.small",
             "project_name": "default",
+            'vpc_id': 'vpc-22j75iztkwo3k7r2qr1czeq8b',
+            "subnet_id": 'subnet-3qd8s8xald8n47prml147n61j',
             "vpc": {
                 "name": "pg-instance-1-vpc",  # VPC名称
                 "cidr_block": "172.16.0.0/16",  # VPC网段
@@ -63,7 +65,7 @@ instance_configs = [
                 "is_open": True,
                 "type": "Kibana"
             },
-            "admin_password": "test@1234",
+            "admin_password": "ns2024Xqrif848",
             "deletion_protection": True,
             "enable_https": False,
             "region_id": "cn-shanghai",

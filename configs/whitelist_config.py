@@ -2,21 +2,21 @@
 whitelist_config = {
     "whitelists": [
         {
-            "name": "default-whitelist",
-            "ip_list": ["0.0.0.0/0"],
+            "name": "lan",
+            "ip_list": ["127.0.0.0/8","10.0.0.0/8","100.64.0.0/10","172.16.0.0/12","192.168.0.0/16"],
             "description": "默认白名单配置",
             "type": "IPv4"
         },
         {
-            "name": "office-whitelist",
-            "ip_list": ["192.168.1.0/24", "192.168.2.0/24"],
+            "name": "wan_office",
+            "ip_list": ["OFFICE_IP"],
             "description": "办公网络白名单",
             "type": "IPv4"
         },
         {
-            "name": "vpc-whitelist",
-            "ip_list": ["172.16.0.0/16"],
-            "description": "VPC网络白名单",
+            "name": "wan_server",
+            "ip_list": ["120.25.176.44", "47.57.186.97", "47.76.60.24"],
+            "description": "公网网络白名单",
             "type": "IPv4"
         }
     ]

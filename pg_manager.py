@@ -4,7 +4,7 @@ import volcenginesdkrdspostgresql
 import volcenginesdkvpc
 from volcenginesdkcore.rest import ApiException
 import time
-import logging
+
 from configs.api_config import api_config, timeout_config
 from configs.pg_configs import instance_configs
 from configs.network_config import network_config
@@ -13,6 +13,7 @@ from whitelist_manager import PostgreSQLWhitelistManager
 
 
 import os
+import logging
 # 确保logs目录存在
 log_dir = os.path.join(os.path.dirname(__file__), 'logs')
 os.makedirs(log_dir, exist_ok=True)
@@ -192,7 +193,6 @@ class PostgreSQLManager:
         :param interval: 检查间隔（秒）
         :return: bool 是否成功
         """
-        time.sleep(interval)
         start_time = time.time()
         while True:
             try:
