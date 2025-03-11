@@ -257,9 +257,10 @@ class ResourceBase:
             # 格式化实例信息
             result = []
             for instance in instances:
+                # print(instance)
                 instance_info = {
                     'instance_id': instance.instance_id,
-                    'instance_name': getattr(instance, 'instance_name', None) or getattr(instance.instance_configuration, 'instance_name', '') if hasattr(instance, 'instance_configuration') else '',
+                    'instance_name': self._get_instance_name(instance),
                     'status': getattr(instance, 'status', None) or getattr(instance, 'instance_status', None),
                     'create_time': getattr(instance, 'create_time', None) or getattr(instance, 'created_time', None),
                     
@@ -358,6 +359,36 @@ class ResourceBase:
         """
         logger.error(f"{operation}时发生异常: {e}")
         return False
+
+    def _get_instance_name(self, instance):
+        """从实例对象中获取实例名称，处理各种可能的数据结构
+
+        :param instance: 实例对象
+        :return: str 实例名称
+        """
+        # 直接从实例对象获取instance_name
+        name = getattr(instance, 'instance_name', None)
+        if name:
+            return name
+            
+        # 从instance_configuration中获取
+        if hasattr(instance, 'instance_configuration'):
+            name = getattr(instance.instance_configuration, 'instance_name', None)
+            if name:
+                return name
+                
+        # 尝试从其他可能的属性获取
+        for attr_name in ['name', 'db_instance_name', 'instance_description']:
+            name = getattr(instance, attr_name, None)
+            if name:
+                return name
+                
+        # 如果都没有找到，返回实例ID作为名称
+        if hasattr(instance, 'instance_id'):
+            return f"Instance-{instance.instance_id}"
+            
+        # 最后的回退选项
+        return "Unknown"
 
 class PostgreSQLResource(ResourceBase):
     def __init__(self):

@@ -242,6 +242,28 @@ class KafkaManager:
             logger.error(f"创建公网访问端点时发生异常: {e}")
             return False
 
+    def get_private_endpoint(self, instance_id):
+        try:
+            # 查询实例详情获取内网访问信息
+            describe_request = self.api.DescribeInstanceDetailRequest(
+                instance_id=instance_id
+            )
+            describe_response = self.client_api.describe_instance_detail(describe_request)
+            # 遍历endpoints查找内网连接点
+            if hasattr(describe_response, 'connection_info'):
+                for endpoint in describe_response.connection_info:
+                    if endpoint.endpoint_type == 'PLAINTEXT':
+                            logger.info(f"内网访问端点信息:")
+                            logger.info(f"  - 域名: {endpoint.internal_endpoint}")
+                            return endpoint.internal_endpoint, None
+            
+            print("未找到内网访问端点信息")
+            return None, None
+            
+        except ApiException as e:
+            print("获取内网访问信息时发生异常: %s\n" % e)
+            return None, None
+
 def main():
     kafka_manager = KafkaManager()
     vpc_manager = VPCManager()
@@ -316,6 +338,11 @@ def main():
         #     logger.error("创建公网访问端点失败")
         #     continue
 
+        private_address_domain, private_address_port = kafka_manager.get_private_endpoint(instance_id)
+        if not private_address_domain:
+            logger.error("获取内网访问端点失败")
+            continue
+        
         # 5. 创建白名单
         if not kafka_manager.create_whitelist(instance_id):
             logger.error("创建白名单失败")

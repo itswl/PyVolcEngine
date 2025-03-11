@@ -3,7 +3,7 @@
 instance_configs = [
     {
         "instance": {
-            "name": "her-dev-kafka",
+            "name": "eve-cn-dev-kafka",
             "product_id": "kafka.20xrate.hw",  # Kafka规格
             "zone_id": "cn-shanghai-a,cn-shanghai-b,cn-shanghai-c",  # 可用区
             "storage_size": 300,  # 存储大小，单位GB
@@ -55,7 +55,7 @@ instance_configs = [
                 "host": "*"  # 主机，*表示所有
             }
         ],
-        "eip": "her-dev-kafka",  # 使用EIP配置名称，对应eip_config.py中的配置
+        "eip": "eve-cn-dev-kafka",  # 使用EIP配置名称，对应eip_config.py中的配置
         "whitelists": ["default-whitelist", "office-whitelist", "vpc-whitelist"]  # 使用白名单配置名称列表，对应whitelist_config.py中的配置
     }
 ]
