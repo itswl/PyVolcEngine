@@ -3,7 +3,7 @@
 
 # 标准组件配置列表，用于集群创建后安装基础组件
 # 从listaddon.log提取的组件配置
-
+# ingress-nginx 的 subnet 手动修改
 STANDARD_ADDONS = [
     # 核心DNS服务
     {
