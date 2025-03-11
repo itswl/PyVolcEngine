@@ -19,6 +19,7 @@ from volcenginesdkvke.models.create_addon_request import CreateAddonRequest
 from volcenginesdkvke.models.list_addons_request import ListAddonsRequest
 from configs.vke_configs import CLUSTER_CONFIGS
 from configs.api_config import api_config
+from configs.standard_addons import STANDARD_ADDONS
 
 import logging
 # 确保logs目录存在
@@ -513,7 +514,7 @@ class VKEManager:
                 create_addon_request.deploy_node_type = deploy_node_type
             if config:
                 create_addon_request.config = config
-            print(create_addon_request)  
+            # print(create_addon_request)  
             response = self.vke_api.create_addon(create_addon_request)
             logger.info(f"组件 {name} 安装请求已提交")
             return True
@@ -736,15 +737,15 @@ def main():
             logger.info(f"获取集群 {cluster_name} 的kubeconfig失败")
             continue
             
-        # # 安装标准组件
-        # results = vke_manager.install_standard_addons(cluster_id)
-        # logger.info(f"集群 {cluster_name} 标准组件安装结果: {results}")
+        # 安装标准组件
+        results = vke_manager.install_standard_addons(cluster_id)
+        logger.info(f"集群 {cluster_name} 标准组件安装结果: {results}")
         
         # 从日志文件安装额外组件（可选）
-        log_file = "listaddon.log"  # 替换为实际的日志文件路径
-        if os.path.exists(log_file):
-            results = vke_manager.install_addons_from_log(log_file, cluster_id)
-            logger.info(f"集群 {cluster_name} 从日志文件安装组件结果: {results}")
+        # log_file = "listaddon.log"  # 替换为实际的日志文件路径
+        # if os.path.exists(log_file):
+        #     results = vke_manager.install_addons_from_log(log_file, cluster_id)
+        #     logger.info(f"集群 {cluster_name} 从日志文件安装组件结果: {results}")
             
         logger.info(f"集群 {cluster_name} 处理完成\n")
 
