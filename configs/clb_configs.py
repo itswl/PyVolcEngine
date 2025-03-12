@@ -7,25 +7,14 @@ CLB（负载均衡）实例配置
 # CLB实例配置列表
 clb_configs = [
     {
-        'name': 'public-clb-1',
-        'subnet_id': 'subnet-22jqp154rgum87r2qr1lfsh2i',  # 替换为实际的子网ID
+        'name': 'eve-cn-dev-clb-hs-sh',
+        'subnet_id': 'subnet-3qd8s8xald8n47prml147n61j',  # 替换为实际的子网ID
         'type': 'public',
-        'load_balancer_spec': 'small_2',
-        'description': '公网负载均衡实例1',
+        'load_balancer_spec': 'small_1',
+        'description': '',
         'eip': {
-            'bandwidth': 10,
-            'eip_billing_type': 2
-        }
-    },
-    {
-        'name': 'public-clb-2',
-        'subnet_id': 'subnet-22jqp154rgum87r2qr1lfsh2i',  # 替换为实际的子网ID
-        'type': 'public',
-        'load_balancer_spec': 'medium_1',
-        'description': '公网负载均衡实例2',
-        'eip': {
-            'bandwidth': 100,
-            'eip_billing_type': 2
+            'bandwidth': 50,
+            'eip_billing_type': 3 # 按量付费，实际流量
         }
     }
 ]

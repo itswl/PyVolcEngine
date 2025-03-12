@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+'''
+python add_cdn_domain.py \
+    --domain eve-cn-dev-cms-object-cdn.yourdomain.com \
+    --primary-origin eve-cn-dev-cms-object.tos-cn-shanghai.volces.com \
+    --service-type tos \
+    --service-region chinese_mainland \
+    --origin-protocol followclient \
+    --https true --ipv6 true --project default
+'''
 import os
 import sys
 import json

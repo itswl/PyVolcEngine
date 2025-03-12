@@ -38,3 +38,4 @@ __pycache__/
 api_config.py
 logs/
 volcengine-python-sdk-*/
+examples/
