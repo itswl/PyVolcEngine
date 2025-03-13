@@ -2,31 +2,66 @@
 
 import os
 import json
-from typing import Dict, List, Optional, Union
+import logging
+import time
+from typing import Dict, List, Optional, Union, Any
+from functools import wraps
 from volcenginesdkcore.rest import ApiException
 from volcenginesdkcore import Configuration
 import volcenginesdkclb
 from volcenginesdkclb import CLBApi, DescribeLoadBalancersRequest
 from configs.api_config import api_config
 from configs.clb_configs import clb_configs
-import time
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+def retry_on_failure(max_retries: int = 3, delay: int = 1):
+    """重试装饰器"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except ApiException as e:
+                    if attempt == max_retries - 1:
+                        raise
+                    logger.warning(f"尝试 {attempt + 1}/{max_retries} 失败: {str(e)}")
+                    time.sleep(delay)
+            return None
+        return wrapper
+    return decorator
 
 class CLBManager:
     """负载均衡资源管理器"""
 
     def __init__(self):
         """初始化CLB管理器"""
-        self.config = Configuration()
-        self.config.ak = os.getenv('volcAK')  or api_config['ak']
-        self.config.sk = os.getenv('volcSK')  or api_config['sk']
-        self.config.region = os.getenv('Region', 'cn-shanghai')  or api_config['region']
-        Configuration.set_default(self.config)
+        self.config = self._init_config()
         self.client = CLBApi()
+        self._load_balancer_cache = {}
+        self._cache_timeout = 300  # 缓存超时时间（秒）
+        self._last_cache_update = 0
 
+    def _init_config(self) -> Configuration:
+        """初始化配置"""
+        config = Configuration()
+        config.ak = os.getenv('volcAK') or api_config['ak']
+        config.sk = os.getenv('volcSK') or api_config['sk']
+        config.region = os.getenv('Region', 'cn-shanghai') or api_config['region']
+        Configuration.set_default(config)
+        return config
+
+    @retry_on_failure(max_retries=3, delay=2)
     def create_load_balancer(self, name: str, subnet_id: str, type: str = 'public',
                            load_balancer_spec: str = 'small_1', eip: Optional[Dict] = None,
                            address_ip_version: str = 'ipv4',
-                           load_balancer_billing_type: int = 2) -> Dict:
+                           load_balancer_billing_type: int = 2) -> Dict[str, Any]:
         """创建负载均衡实例
 
         Args:
@@ -60,13 +95,15 @@ class CLBManager:
                 request.eip_billing_config = eip_config
             # print(request)
             response = self.client.create_load_balancer(request)
-            print(f'成功创建负载均衡实例：{name}')
+            logger.info(f'成功创建负载均衡实例：{name}')
+            self._invalidate_cache()
             return response.to_dict()
         except ApiException as e:
-            print(f'创建负载均衡实例失败：{str(e)}')
+            logger.error(f'创建负载均衡实例失败：{str(e)}')
             raise
 
-    def describe_load_balancers(self, load_balancer_ids: Optional[List[str]] = None) -> Dict:
+    @retry_on_failure(max_retries=3, delay=1)
+    def describe_load_balancers(self, load_balancer_ids: Optional[List[str]] = None) -> Dict[str, Any]:
         """查询负载均衡实例列表
 
         Args:
@@ -75,19 +112,39 @@ class CLBManager:
         Returns:
             Dict: 负载均衡实例列表信息
         """
+        current_time = time.time()
+        
+        # 检查缓存是否有效
+        if (current_time - self._last_cache_update < self._cache_timeout and 
+            not load_balancer_ids and self._load_balancer_cache):
+            return self._load_balancer_cache
+
         try:
             request = volcenginesdkclb.DescribeLoadBalancersRequest()
             if load_balancer_ids:
                 request.load_balancer_ids = load_balancer_ids
             response = self.client.describe_load_balancers(request)
-            return response.to_dict()
+            result = response.to_dict()
+            
+            # 更新缓存
+            if not load_balancer_ids:
+                self._load_balancer_cache = result
+                self._last_cache_update = current_time
+                
+            return result
         except ApiException as e:
-            print(f'查询负载均衡实例列表失败：{str(e)}')
+            logger.error(f'查询负载均衡实例列表失败：{str(e)}')
             raise
 
+    def _invalidate_cache(self):
+        """使缓存失效"""
+        self._load_balancer_cache = {}
+        self._last_cache_update = 0
+
+    @retry_on_failure(max_retries=3, delay=1)
     def modify_load_balancer_attributes(self, load_balancer_id: str,
                                       name: Optional[str] = None,
-                                      description: Optional[str] = None) -> Dict:
+                                      description: Optional[str] = None) -> Dict[str, Any]:
         """修改负载均衡实例属性
 
         Args:
@@ -105,13 +162,15 @@ class CLBManager:
             if description:
                 request['Description'] = description
             response = self.client.modify_load_balancer_attributes(request)
-            print(f'成功修改负载均衡实例属性：{load_balancer_id}')
+            logger.info(f'成功修改负载均衡实例属性：{load_balancer_id}')
+            self._invalidate_cache()
             return response.to_dict()
         except ApiException as e:
-            print(f'修改负载均衡实例属性失败：{str(e)}')
+            logger.error(f'修改负载均衡实例属性失败：{str(e)}')
             raise
 
-    def delete_load_balancer(self, load_balancer_ids: Union[str, List[str]]) -> List[Dict]:
+    @retry_on_failure(max_retries=3, delay=2)
+    def delete_load_balancer(self, load_balancer_ids: Union[str, List[str]]) -> List[Dict[str, Any]]:
         """删除负载均衡实例
 
         Args:
@@ -131,30 +190,32 @@ class CLBManager:
                     load_balancer_id=lb_id
                 )
                 response = self.client.delete_load_balancer(delete_load_balancer_request)
-                print(f'成功删除负载均衡实例：{lb_id}')
+                logger.info(f'成功删除负载均衡实例：{lb_id}')
                 results.append(response.to_dict())
             except ApiException as e:
-                print(f'删除负载均衡实例失败：{lb_id}, 错误：{str(e)}')
+                logger.error(f'删除负载均衡实例失败：{lb_id}, 错误：{str(e)}')
                 continue
+        
+        if results:
+            self._invalidate_cache()
         return results
 
-    def create_load_balancers_from_config(self) -> List[Dict]:
+    def create_load_balancers_from_config(self) -> List[Dict[str, Any]]:
         """从配置文件创建多个负载均衡实例
 
         Returns:
             List[Dict]: 创建的负载均衡实例信息列表
         """
         results = []
-        # 获取现有负载均衡实例列表
         existing_lbs = self.describe_load_balancers()
-        existing_names = [lb['load_balancer_name'] for lb in existing_lbs.get('load_balancers', [])]
+        existing_names = {lb['load_balancer_name'] for lb in existing_lbs.get('load_balancers', [])}
         # print(existing_names)
         # time.sleep(100)
         for config in clb_configs:
             try:
                 # 检查是否存在同名实例
                 if config['name'] in existing_names:
-                    print(f'跳过创建负载均衡实例 {config["name"]}：已存在同名实例')
+                    logger.info(f'跳过创建负载均衡实例 {config["name"]}：已存在同名实例')
                     continue
 
                 result = self.create_load_balancer(
@@ -172,37 +233,39 @@ class CLBManager:
                     )
                 results.append(result_dict)
             except ApiException as e:
-                print(f'创建负载均衡实例 {config["name"]} 失败：{str(e)}')
+                logger.error(f'创建负载均衡实例 {config["name"]} 失败：{str(e)}')
                 continue
         return results
 
-    def write_load_balancers_to_file(self):
+    def write_load_balancers_to_file(self) -> None:
         """将负载均衡实例信息写入文件"""
-        # 查询现有的负载均衡实例
-        load_balancers = self.describe_load_balancers()
-        # 筛选并格式化输出指定字段
-        formatted_lbs = [{
-            'load_balancer_id': lb.get('load_balancer_id'),
-            'load_balancer_name': lb.get('load_balancer_name'),
-            'load_balancer_spec': lb.get('load_balancer_spec'),
-            'description': lb.get('description'),
-            'status': lb.get('status'),
-            'address_ip_version': lb.get('address_ip_version'),
-            'eip_address': lb.get('eip_address'),
-            'eip_id': lb.get('eip_id'),
-            'eni_address': lb.get('eni_address'),
-            'master_zone_id': lb.get('master_zone_id'),
-            'slave_zone_id': lb.get('slave_zone_id'),
-            'vpc_id': lb.get('vpc_id'),
-            'subnet_id': lb.get('subnet_id')
-        } for lb in load_balancers.get('load_balancers', [])]
+        try:
+            load_balancers = self.describe_load_balancers()
+            formatted_lbs = [{
+                'load_balancer_id': lb.get('load_balancer_id'),
+                'load_balancer_name': lb.get('load_balancer_name'),
+                'load_balancer_spec': lb.get('load_balancer_spec'),
+                'description': lb.get('description'),
+                'status': lb.get('status'),
+                'address_ip_version': lb.get('address_ip_version'),
+                'eip_address': lb.get('eip_address'),
+                'eip_id': lb.get('eip_id'),
+                'eni_address': lb.get('eni_address'),
+                'master_zone_id': lb.get('master_zone_id'),
+                'slave_zone_id': lb.get('slave_zone_id'),
+                'vpc_id': lb.get('vpc_id'),
+                'subnet_id': lb.get('subnet_id')
+            } for lb in load_balancers.get('load_balancers', [])]
 
-        # 确保logs目录存在
-        os.makedirs('./logs', exist_ok=True)
-        # 将负载均衡实例信息写入文件
-        with open('./logs/load_balancers.json', 'w', encoding='utf-8') as f:
-            json.dump({'load_balancers': formatted_lbs}, f, indent=2, ensure_ascii=False)
-        print('现有负载均衡实例列表已写入./logs/load_balancers.json')
+            # 确保logs目录存在
+            os.makedirs('./logs', exist_ok=True)
+            # 将负载均衡实例信息写入文件
+            with open('./logs/load_balancers.json', 'w', encoding='utf-8') as f:
+                json.dump({'load_balancers': formatted_lbs}, f, indent=2, ensure_ascii=False)
+            logger.info('现有负载均衡实例列表已写入./logs/load_balancers.json')
+        except Exception as e:
+            logger.error(f'写入负载均衡实例信息到文件失败：{str(e)}')
+            raise
 
 def main():
     """主函数，用于测试CLB管理器的功能"""
@@ -215,34 +278,33 @@ def main():
     args = parser.parse_args()
 
     try:
-        
+        clb_manager = CLBManager()
         
         if args.delete:
             # 如果指定了删除参数，先验证实例是否存在
             load_balancers = clb_manager.describe_load_balancers()
-            existing_ids = [lb['load_balancer_id'] for lb in load_balancers.get('load_balancers', [])]
+            existing_ids = {lb['load_balancer_id'] for lb in load_balancers.get('load_balancers', [])}
             not_found_ids = [lb_id for lb_id in args.delete if lb_id not in existing_ids]
             
             if not_found_ids:
-                print(f'错误：找不到以下ID的负载均衡实例：{", ".join(not_found_ids)}')
+                logger.error(f'错误：找不到以下ID的负载均衡实例：{", ".join(not_found_ids)}')
             
             # 执行删除操作
             else:
-                print(f'正在删除负载均衡实例：{args.delete}')
+                logger.info(f'正在删除负载均衡实例：{args.delete}')
                 clb_manager.delete_load_balancer(args.delete)
 
         elif args.create:
             # 如果指定了创建参数，从配置文件创建实例
-            print('开始从配置文件创建负载均衡实例...')
+            logger.info('开始从配置文件创建负载均衡实例...')
             created_load_balancers = clb_manager.create_load_balancers_from_config()
-            print(f'成功创建 {len(created_load_balancers)} 个负载均衡实例')
-
+            logger.info(f'成功创建 {len(created_load_balancers)} 个负载均衡实例')
 
     except Exception as e:
-        print(f'操作失败：{str(e)}')
+        logger.error(f'操作失败：{str(e)}')
 
 if __name__ == '__main__':
-    clb_manager = CLBManager()
-    main() 
+    main()
     time.sleep(5)
+    clb_manager = CLBManager()
     clb_manager.write_load_balancers_to_file()

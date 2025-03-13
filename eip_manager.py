@@ -37,12 +37,24 @@ class EIPManager:
         configuration.client_side_validation = True
         volcenginesdkcore.Configuration.set_default(configuration)
 
-    def allocate_eip(self, eip_name):
+    def allocate_eip(self, eip_name, specified_ip=None, specified_eip_id=None):
         try:
+            # 如果指定了EIP ID，先检查是否存在
+            if specified_eip_id:
+                list_request = volcenginesdkvpc.DescribeEipAddressesRequest()
+                list_response = self.vpc_api.describe_eip_addresses(list_request)
+                if hasattr(list_response, 'eip_addresses'):
+                    for eip in list_response.eip_addresses:
+                        if eip.allocation_id == specified_eip_id:
+                            logger.info(f"找到指定的EIP ID: {specified_eip_id}")
+                            return eip.allocation_id, eip.eip_address, eip.name
+                logger.error(f"未找到指定的EIP ID: {specified_eip_id}")
+                return None, None, None
+
             # 获取EIP配置
             if eip_name not in eip_configs:
                 logger.error(f"未找到名为 {eip_name} 的EIP配置")
-                return None, None
+                return None, None, None
                 
             eip_config = eip_configs[eip_name]
             
@@ -71,45 +83,60 @@ class EIPManager:
                 period_unit=period_unit,
                 period=eip_config['period']
             )
+
+            # 如果指定了IP地址，添加到请求中
+            if specified_ip:
+                request.eip_address = specified_ip
             
             response = self.vpc_api.allocate_eip_address(request)
             logger.info(f"EIP申请成功: {response}")
-            return response.allocation_id, response.eip_address, eip.name
+            return response.allocation_id, response.eip_address, eip_config['name']
             
         except ApiException as e:
             logger.error(f"申请EIP时发生异常: {e}")
-            return None, None
+            return None, None, None
 
-    def release_eip(self, eip_address):
+    def release_eip(self, eip_address=None, allocation_id=None):
         """释放指定的EIP资源
         :param eip_address: EIP地址
+        :param allocation_id: EIP的分配ID
         :return: bool 操作是否成功
         """
         try:
-            # 先获取EIP的allocation_id
-            list_request = volcenginesdkvpc.DescribeEipAddressesRequest()
-            list_response = self.vpc_api.describe_eip_addresses(list_request)
+            # 如果提供了allocation_id，直接使用
+            if allocation_id:
+                release_request = volcenginesdkvpc.ReleaseEipAddressRequest(
+                    allocation_id=allocation_id
+                )
+                self.vpc_api.release_eip_address(release_request)
+                logger.info(f"已成功释放EIP，allocation_id: {allocation_id}")
+                return True
+
+            # 如果提供了eip_address，需要先查找对应的allocation_id
+            if eip_address:
+                list_request = volcenginesdkvpc.DescribeEipAddressesRequest()
+                list_response = self.vpc_api.describe_eip_addresses(list_request)
+                
+                allocation_id = None
+                if hasattr(list_response, 'eip_addresses'):
+                    for eip in list_response.eip_addresses:
+                        if eip.eip_address == eip_address:
+                            allocation_id = eip.allocation_id
+                            break
+                
+                if not allocation_id:
+                    logger.error(f"未找到EIP地址 {eip_address} 对应的allocation_id")
+                    return False
+                
+                release_request = volcenginesdkvpc.ReleaseEipAddressRequest(
+                    allocation_id=allocation_id
+                )
+                self.vpc_api.release_eip_address(release_request)
+                logger.info(f"已成功释放EIP: {eip_address}")
+                return True
             
-            allocation_id = None
-            if hasattr(list_response, 'eip_addresses'):
-                for eip in list_response.eip_addresses:
-                    if eip.eip_address == eip_address:
-                        allocation_id = eip.allocation_id
-                        break
-            
-            if not allocation_id:
-                logger.error(f"未找到EIP地址 {eip_address} 对应的allocation_id")
-                return False
-            
-            # 创建释放请求
-            release_request = volcenginesdkvpc.ReleaseEipAddressRequest(
-                allocation_id=allocation_id
-            )
-            
-            # 执行释放操作
-            self.vpc_api.release_eip_address(release_request)
-            logger.info(f"已成功释放EIP: {eip_address}")
-            return True
+            logger.error("需要提供eip_address或allocation_id参数")
+            return False
             
         except ApiException as e:
             logger.error(f"释放EIP时发生错误: {e}")
