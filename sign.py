@@ -179,7 +179,6 @@ class APIClient:
         if result.get('ResponseMetadata', {}).get('Error'):
             raise APIError(f'任务执行失败：{result["ResponseMetadata"]["Error"]}')
 
-        print('任务执行成功')
         return result
 
 class APIError(Exception):

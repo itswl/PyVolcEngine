@@ -5,95 +5,200 @@
 
 import os
 import json
-from typing import Dict, List, Any, Optional, Tuple
+import logging
+from typing import Dict, List, Any, Optional, Tuple, Union
+from dataclasses import dataclass
+from pathlib import Path
 from sign import APIConfig, APIClient, APIError
 from configs.api_config import api_config
 import argparse
 
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+def get_credentials(ak: Optional[str] = None, sk: Optional[str] = None) -> Tuple[str, str]:
+    """获取访问凭证
+    
+    Args:
+        ak: 访问密钥ID，如果不提供则从api_config获取
+        sk: 访问密钥，如果不提供则从api_config获取
+        
+    Returns:
+        Tuple[str, str]: (ak, sk)元组
+        
+    Raises:
+        DNSOperationError: 当无法获取访问凭证时
+    """
+    # 如果提供了ak和sk，直接使用
+    if ak and sk:
+        return ak, sk 
+    # 从api_config获取
+    config_ak = api_config.get('ak')
+    config_sk = api_config.get('sk')
+    if not config_ak or not config_sk:
+        raise DNSOperationError("无法从api_config获取访问凭证，请确保api_config中包含有效的ak和sk")
+        
+    return config_ak, config_sk
+
+@dataclass
+class DNSRecord:
+    """DNS记录数据类"""
+    fqdn: str
+    host: str
+    record_type: str
+    value: str
+    enable: bool
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'DNSRecord':
+        return cls(
+            fqdn=data.get('FQDN', ''),
+            host=data.get('Host', ''),
+            record_type=data.get('Type', ''),
+            value=data.get('Value', ''),
+            enable=data.get('Enable', False)
+        )
 
 class DNSConfig(APIConfig):
     """DNS API配置类，继承自APIConfig"""
     
-    def __init__(self):
+    def __init__(self, ak: Optional[str] = None, sk: Optional[str] = None):
         # 设置DNS服务的默认参数
         os.environ.setdefault('Service', 'DNS')
         os.environ.setdefault('Version', '2018-08-01')
         os.environ.setdefault('Region', 'cn-beijing')
         os.environ.setdefault('method', 'POST')
+        
+        # 获取访问凭证
+        self.volcAK, self.volcSK = get_credentials(ak, sk)
+        os.environ.setdefault('volcAK', self.volcAK)
+        os.environ.setdefault('volcSK', self.volcSK)
         super().__init__()
 
+class DNSOperationError(Exception):
+    """DNS操作相关的自定义异常"""
+    pass
 
-def list_zones(ak=None, sk=None, region="cn-beijing") -> Dict[str, Any]:
+def _make_api_request(action: str, params: Dict[str, Any], region: str = "cn-beijing",
+                     ak: Optional[str] = None, sk: Optional[str] = None) -> Dict[str, Any]:
+    """发送API请求的通用函数
+    
+    Args:
+        action: API动作名称
+        params: API参数
+        region: 区域名称
+        ak: 访问密钥ID，如果不提供则从api_config获取
+        sk: 访问密钥，如果不提供则从api_config获取
+        
+    Returns:
+        Dict: API响应结果
+        
+    Raises:
+        DNSOperationError: 当API请求失败时
+    """
+    if region:
+        os.environ['Region'] = region
+    
+    os.environ['Action'] = action
+    os.environ['API_PARAMS'] = json.dumps(params)
+    
+    try:
+        config = DNSConfig(ak, sk)
+        client = APIClient(config)
+        return client.send_request()
+    except (ValueError, APIError) as e:
+        raise DNSOperationError(f"API请求失败: {str(e)}")
+
+def list_zones(ak: Optional[str] = None, sk: Optional[str] = None, region: str = "cn-beijing") -> Dict[str, Any]:
     """获取域名ID列表
     
     Args:
-        ak: 访问密钥ID，如果不提供则从环境变量获取
-        sk: 访问密钥，如果不提供则从环境变量获取
+        ak: 访问密钥ID，如果不提供则从api_config获取
+        sk: 访问密钥，如果不提供则从api_config获取
         region: 区域，默认为cn-beijing
         
     Returns:
         Dict: API响应结果
     """
-    # 设置区域信息
-    if region:
-        os.environ['Region'] = region
-    
-    os.environ['Action'] = 'ListZones'
-    os.environ['API_PARAMS'] = json.dumps({})
-    
     try:
-        # 创建DNS配置和API客户端
-        config = DNSConfig()
-        client = APIClient(config)
-        
-        # 发送请求
-        response = client.send_request()
-        # print("成功获取域名ID列表")
-        # print(json.dumps(response, indent=2, ensure_ascii=False))
+        response = _make_api_request('ListZones', {}, region, ak, sk)
+        logger.info("成功获取域名ID列表")
         return response
-    except (ValueError, APIError) as e:
-        error_msg = f"获取域名ID列表失败: {str(e)}"
-        print(error_msg)
-        return {"error": error_msg}
+    except DNSOperationError as e:
+        logger.error(f"获取域名ID列表失败: {str(e)}")
+        return {"error": str(e)}
 
-def ListRecords(ak=None, sk=None, region="cn-beijing", zid=None, PageNumber=1, PageSize=500) -> Dict[str, Any]:
-    """获取域名ID列表
+def list_records(zid: int, page_number: int = 1, page_size: int = 500, 
+                ak: Optional[str] = None, sk: Optional[str] = None, 
+                region: str = "cn-beijing") -> Dict[str, Any]:
+    """获取域名记录列表
     
     Args:
-        ak: 访问密钥ID，如果不提供则从环境变量获取
-        sk: 访问密钥，如果不提供则从环境变量获取
+        zid: 域名ID
+        page_number: 页码，默认为1
+        page_size: 每页记录数，默认为500
+        ak: 访问密钥ID，如果不提供则从api_config获取
+        sk: 访问密钥，如果不提供则从api_config获取
         region: 区域，默认为cn-beijing
         
     Returns:
         Dict: API响应结果
     """
-    # 设置区域信息
-    if region:
-        os.environ['Region'] = region
-
-    api_params = {
-        "ZID": zid,
-        "PageNumber": PageNumber,
-        "PageSize": PageSize,
-    }
-
-    os.environ['Action'] = 'ListRecords'
-    os.environ['API_PARAMS'] = json.dumps(api_params)
-    
     try:
-        # 创建DNS配置和API客户端
-        config = DNSConfig()
-        client = APIClient(config)
-        
-        # 发送请求
-        response = client.send_request()
+        params = {
+            "ZID": zid,
+            "PageNumber": page_number,
+            "PageSize": page_size,
+        }
+        response = _make_api_request('ListRecords', params, region, ak, sk)
         return response
-    except (ValueError, APIError) as e:
-        error_msg = f"获取域名ID列表失败: {str(e)}"
-        print(error_msg)
-        return {"error": error_msg}
+    except DNSOperationError as e:
+        logger.error(f"获取域名记录列表失败: {str(e)}")
+        return {"error": str(e)}
 
-def create_record(host: str, record_type: str, value: str, zid: int, ak=None, sk=None, region="cn-beijing") -> Dict[str, Any]:
+def check_record_exists(host: str, record_type: str, value: str, zid: int,
+                       ak: Optional[str] = None, sk: Optional[str] = None,
+                       region: str = "cn-beijing") -> bool:
+    """检查DNS记录是否已存在
+    
+    Args:
+        host: 主机记录
+        record_type: 记录类型
+        value: 记录值
+        zid: 域名ID
+        ak: 访问密钥ID，如果不提供则从api_config获取
+        sk: 访问密钥，如果不提供则从api_config获取
+        region: 区域，默认为cn-beijing
+        
+    Returns:
+        bool: 记录是否存在
+    """
+    try:
+        response = list_records(zid=zid, ak=ak, sk=sk, region=region)
+        if "error" in response:
+            logger.error(f"检查记录是否存在时出错: {response['error']}")
+            return False
+            
+        if "Result" not in response or "Records" not in response["Result"]:
+            return False
+            
+        for record in response["Result"]["Records"]:
+            if (record.get('Host') == host and 
+                record.get('Type') == record_type and 
+                record.get('Value') == value):
+                return True
+        return False
+    except Exception as e:
+        logger.error(f"检查记录是否存在时出现异常: {str(e)}")
+        return False
+
+def create_record(host: str, record_type: str, value: str, zid: int,
+                 ak: Optional[str] = None, sk: Optional[str] = None,
+                 region: str = "cn-beijing", skip_check: bool = False) -> Dict[str, Any]:
     """添加DNS解析记录
     
     Args:
@@ -101,45 +206,34 @@ def create_record(host: str, record_type: str, value: str, zid: int, ak=None, sk
         record_type: 记录类型，例如 CNAME, A, AAAA等
         value: 记录值
         zid: 域名ID
-        ak: 访问密钥ID，如果不提供则从环境变量获取
-        sk: 访问密钥，如果不提供则从环境变量获取
+        ak: 访问密钥ID，如果不提供则从api_config获取
+        sk: 访问密钥，如果不提供则从api_config获取
         region: 区域，默认为cn-beijing
+        skip_check: 是否跳过重复检查，默认为False
         
     Returns:
         Dict: API响应结果
     """
-    # 设置区域信息
-    if region:
-        os.environ['Region'] = region
-    
-    # 设置API参数
-    api_params = {
-        "ZID": zid,
-        "Host": host,
-        "Type": record_type,
-        "Value": value
-    }
-    
-    os.environ['Action'] = 'CreateRecord'
-    os.environ['API_PARAMS'] = json.dumps(api_params)
-    
     try:
-        # 创建DNS配置和API客户端
-        config = DNSConfig()
-        client = APIClient(config)
-        
-        # 发送请求
-        response = client.send_request()
-        print(f"成功添加DNS解析记录: {host}")
-        print(json.dumps(response, indent=2, ensure_ascii=False))
+        # 检查记录是否已存在
+        if not skip_check and check_record_exists(host, record_type, value, zid, ak, sk, region):
+            logger.warning(f"记录已存在: Host={host}, Type={record_type}, Value={value}")
+            return {"error": "记录已存在"}
+            
+        params = {
+            "ZID": zid,
+            "Host": host,
+            "Type": record_type,
+            "Value": value
+        }
+        response = _make_api_request('CreateRecord', params, region, ak, sk)
+        logger.info(f"成功添加DNS解析记录: {host}")
         return response
-    except (ValueError, APIError) as e:
-        error_msg = f"添加DNS解析记录失败: {str(e)}"
-        print(error_msg)
-        return {"error": error_msg}
+    except DNSOperationError as e:
+        logger.error(f"添加DNS解析记录失败: {str(e)}")
+        return {"error": str(e)}
 
-
-def export_records_to_file(response: Dict[str, Any], output_file: str = "dns_records.txt") -> bool:
+def export_records_to_file(response: Dict[str, Any], output_file: Union[str, Path]) -> bool:
     """将DNS记录导出到文件
     
     Args:
@@ -150,121 +244,104 @@ def export_records_to_file(response: Dict[str, Any], output_file: str = "dns_rec
         bool: 是否成功导出
     """
     try:
-        # 检查响应是否包含记录
         if "error" in response:
-            print(f"错误: {response['error']}")
+            logger.error(f"错误: {response['error']}")
             return False
             
         if "Result" not in response or "Records" not in response["Result"]:
-            print("错误: 响应中没有找到DNS记录")
+            logger.error("错误: 响应中没有找到DNS记录")
             return False
             
-        records = []
-        for item in response["Result"]["Records"]:
-            record = {
-                'FQDN': item.get('FQDN', ''),
-                'Host': item.get('Host', ''),
-                'Type': item.get('Type', ''),
-                'Value': item.get('Value', ''),
-                'Enable': 'Yes' if item.get('Enable', False) else 'No'
-            }
-            records.append(record)
-            
-        # 格式化记录为表格
+        records = [DNSRecord.from_dict(item) for item in response["Result"]["Records"]]
         if not records:
-            formatted_table = "没有找到有效的DNS记录"
-        else:
-            # 确定每列的最大宽度
-            max_widths = {}
-            headers = ['FQDN', 'Host', 'Type', 'Value', 'Enable']
+            logger.warning("没有找到有效的DNS记录")
+            return False
             
-            for header in headers:
-                max_widths[header] = len(header)
-                for record in records:
-                    max_widths[header] = max(max_widths[header], len(str(record.get(header, ''))))
-            
-            # 创建表头
-            header_line = ' | '.join(f"{header:{max_widths[header]}}" for header in headers)
-            separator_line = '-+-'.join('-' * max_widths[header] for header in headers)
-            
-            # 创建表格内容
-            table_rows = [header_line, separator_line]
-            for record in records:
-                row = ' | '.join(f"{str(record.get(header, '')):{max_widths[header]}}" for header in headers)
-                table_rows.append(row)
-            
-            formatted_table = '\n'.join(table_rows)
+        # 使用Path对象处理文件路径
+        output_path = Path(output_file)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # 格式化记录为表格
+        headers = ['FQDN', 'Host', 'Type', 'Value', 'Enable']
+        max_widths = {header: max(len(str(getattr(record, header.lower().replace('type', 'record_type')))) 
+                                for record in records) for header in headers}
+        
+        # 创建表格内容
+        table_rows = []
+        header_line = ' | '.join(f"{header:{max_widths[header]}}" for header in headers)
+        separator_line = '-+-'.join('-' * max_widths[header] for header in headers)
+        table_rows.extend([header_line, separator_line])
+        
+        for record in records:
+            row = ' | '.join(
+                f"{str(getattr(record, header.lower().replace('type', 'record_type'))):{max_widths[header]}}"
+                for header in headers
+            )
+            table_rows.append(row)
         
         # 写入文件
-        with open(output_file, 'w') as f:
-            f.write(formatted_table)
-            
-        print(f"DNS记录已成功写入文件: {output_file}")
+        output_path.write_text('\n'.join(table_rows), encoding='utf-8')
+        logger.info(f"DNS记录已成功写入文件: {output_path}")
         return True
     except Exception as e:
-        print(f"错误: 导出DNS记录时出现异常 - {str(e)}")
+        logger.error(f"导出DNS记录时出现异常: {str(e)}")
         return False
 
-
-def create_records_from_file(file_path: str, zid: int, ak=None, sk=None, region="cn-beijing") -> List[Dict[str, Any]]:
+def create_records_from_file(file_path: Union[str, Path], zid: int,
+                          ak: Optional[str] = None, sk: Optional[str] = None,
+                          region: str = "cn-beijing", skip_check: bool = False) -> List[Dict[str, Any]]:
     """从导出的文件中读取DNS记录并创建这些记录
     
     Args:
         file_path: 导出的DNS记录文件路径
         zid: 域名ID
-        ak: 访问密钥ID，如果不提供则从环境变量获取
-        sk: 访问密钥，如果不提供则从环境变量获取
+        ak: 访问密钥ID，如果不提供则从api_config获取
+        sk: 访问密钥，如果不提供则从api_config获取
         region: 区域，默认为cn-beijing
+        skip_check: 是否跳过重复检查，默认为False
         
     Returns:
         List[Dict[str, Any]]: 创建记录的结果列表
     """
     try:
-        # 读取文件内容
-        with open(file_path, 'r') as f:
-            content = f.read()
-        
+        file_path = Path(file_path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"文件不存在: {file_path}")
+            
+        content = file_path.read_text(encoding='utf-8')
         if not content or content.strip() == "没有找到有效的DNS记录":
-            print(f"错误: 文件 {file_path} 中没有找到有效的DNS记录")
+            logger.error(f"文件 {file_path} 中没有找到有效的DNS记录")
             return []
         
-        # 解析表格内容
         lines = content.strip().split('\n')
-        if len(lines) < 3:  # 至少需要表头、分隔线和一条记录
-            print(f"错误: 文件 {file_path} 格式不正确，无法解析")
+        if len(lines) < 3:
+            logger.error(f"文件 {file_path} 格式不正确，无法解析")
             return []
         
-        # 提取表头和记录
-        header_line = lines[0]
-        headers = [h.strip() for h in header_line.split('|')]
-        
-        # 创建记录列表
+        headers = [h.strip() for h in lines[0].split('|')]
         results = []
-        for i in range(2, len(lines)):  # 跳过表头和分隔线
-            line = lines[i]
+        skipped_records = []
+        
+        for i, line in enumerate(lines[2:], start=2):
             if not line.strip():
                 continue
                 
-            # 解析记录行
             values = [v.strip() for v in line.split('|')]
             if len(values) < len(headers):
-                print(f"警告: 第 {i+1} 行格式不正确，跳过")
+                logger.warning(f"第 {i+1} 行格式不正确，跳过")
                 continue
                 
-            # 创建记录字典
-            record = {}
-            for j, header in enumerate(headers):
-                header = header.strip()
-                if j < len(values):
-                    record[header] = values[j].strip()
-            
-            # 检查必要字段
+            record = dict(zip(headers, values))
             if not all(k in record and record[k] for k in ['Host', 'Type', 'Value']):
-                print(f"警告: 第 {i+1} 行缺少必要字段 (Host, Type, Value)，跳过")
+                logger.warning(f"第 {i+1} 行缺少必要字段 (Host, Type, Value)，跳过")
                 continue
                 
-            # 创建DNS记录
-            print(f"正在创建记录: Host={record['Host']}, Type={record['Type']}, Value={record['Value']}")
+            # 检查记录是否已存在
+            if not skip_check and check_record_exists(record['Host'], record['Type'], record['Value'], zid, ak, sk, region):
+                skipped_records.append(f"Host={record['Host']}, Type={record['Type']}, Value={record['Value']}")
+                continue
+                
+            logger.info(f"正在创建记录: Host={record['Host']}, Type={record['Type']}, Value={record['Value']}")
             response = create_record(
                 host=record['Host'],
                 record_type=record['Type'],
@@ -272,24 +349,29 @@ def create_records_from_file(file_path: str, zid: int, ak=None, sk=None, region=
                 zid=zid,
                 ak=ak,
                 sk=sk,
-                region=region
+                region=region,
+                skip_check=skip_check
             )
             
             results.append(response)
         
-        if not results:
-            print("没有创建任何记录")
+        # 输出处理结果统计
+        if skipped_records:
+            logger.warning(f"以下 {len(skipped_records)} 条记录已存在，已跳过：")
+            for record in skipped_records:
+                logger.warning(f"  - {record}")
+                
+        if not results and not skipped_records:
+            logger.warning("没有找到任何有效的DNS记录")
         else:
-            print(f"成功从文件 {file_path} 创建了 {len(results)} 条DNS记录")
+            logger.info(f"成功从文件 {file_path} 创建了 {len(results)} 条DNS记录")
+            if skipped_records:
+                logger.info(f"跳过了 {len(skipped_records)} 条已存在的记录")
             
         return results
-    except FileNotFoundError:
-        print(f"错误: 文件 {file_path} 不存在")
-        return []
     except Exception as e:
-        print(f"错误: 从文件创建DNS记录时出现异常 - {str(e)}")
+        logger.error(f"从文件创建DNS记录时出现异常: {str(e)}")
         return []
-
 
 if __name__ == "__main__":
     # 示例1：获取域名ID列表
@@ -316,13 +398,14 @@ if __name__ == "__main__":
     parser.add_argument('--value', help='记录值 (仅创建记录时需要)')
     parser.add_argument('--output', default='dns_records.txt', help='输出文件路径 (仅导出记录时需要)')
     parser.add_argument('--input', help='输入文件路径 (仅从文件导入记录时需要)')
+    parser.add_argument('--skip-check', action='store_true', help='跳过重复检查')
     
     args = parser.parse_args()
 
     # 根据action参数执行不同的操作
     if args.action == 'list':
         # 列出指定域名ID的所有记录
-        response = ListRecords(zid=args.zid)
+        response = list_records(zid=args.zid)
         print("\n域名记录列表:")
         print(json.dumps(response, indent=2, ensure_ascii=False))
     
@@ -340,13 +423,14 @@ if __name__ == "__main__":
             host=args.host,
             record_type=args.type,
             value=args.value,
-            zid=args.zid
+            zid=args.zid,
+            skip_check=args.skip_check
         )
     
     elif args.action == 'export':
         # 导出记录到文件
         print("\n导出DNS记录到文件:")
-        response = ListRecords(zid=args.zid)
+        response = list_records(zid=args.zid)
         export_records_to_file(response, args.output)
     
     elif args.action == 'import':
@@ -360,11 +444,12 @@ if __name__ == "__main__":
         print("\n从文件导入DNS记录:")
         create_records_from_file(
             file_path=args.input,
-            zid=args.zid
+            zid=args.zid,
+            skip_check=args.skip_check
         )
     
     elif args.action == 'export':
         # 获取记录并导出到文件
         print("\n导出DNS记录到文件:")
-        response = ListRecords(zid=args.zid)
+        response = list_records(zid=args.zid)
         export_records_to_file(response, args.output)
