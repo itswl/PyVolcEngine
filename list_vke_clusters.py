@@ -6,6 +6,7 @@ import volcenginesdkvke
 from volcenginesdkvke.models.list_clusters_request import ListClustersRequest
 from configs.api_config import api_config
 from base_resource_manager import BaseResourceManager
+import os
 
 class VKEClusterManager(BaseResourceManager):
     def __init__(self):
@@ -128,14 +129,29 @@ class VKEClusterManager(BaseResourceManager):
             file.write(cluster['kubeconfig'])
             file.write("\n```\n\n")
 
-def main():
-    try:
-        manager = VKEClusterManager()
-        clusters = manager.list_resources()
-        manager.write_to_markdown(clusters)
-        print("成功完成所有VKE集群信息的收集和记录")
-    except Exception as e:
-        print(f"执行过程中发生错误: {e}")
+    def list_and_write_resources(self):
+        """收集并记录网络资源信息
+        
+        获取所有网络资源信息并写入Markdown文件。
+        """
+        try:
+            manager = VKEClusterManager()
+            resources = manager.list_resources()
+            
+            # 确保logs目录存在
+            os.makedirs('./markdown', exist_ok=True)
+            
+            # 写入Markdown文件
+            with open('./markdown/vke_resources.md', 'w', encoding='utf-8') as f:
+                manager._write_resources_to_file(f, resources)
+                
+            manager.logger.info('VKE资源信息已写入 ./markdown/vke_resources.md')
+            print("成功完成所有VKE资源信息的收集和记录")
+            return True
+        except Exception as e:
+            print(f"执行过程中发生错误: {e}")
+            return False
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    manager = VKEClusterManager()
+    manager.list_and_write_resources()

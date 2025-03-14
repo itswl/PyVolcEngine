@@ -33,9 +33,8 @@ class DatabaseResourceManager(BaseResourceManager):
             resources = self.list_resources()
             # 确保 logs 目录存在
             os.makedirs('logs', exist_ok=True)
-            # 写入到 logs 目录下的 database_info.md 文件
-            with open('logs/database_info.md', 'w', encoding='utf-8') as f:
-                self._write_resources_to_file(f, resources)
+            # 调用_write_resources_to_file方法写入各个资源文件
+            self._write_resources_to_file(None, resources)
             return True
         except Exception as e:
             self.logger.error(f"获取和写入数据库资源信息时发生错误: {e}")
@@ -467,101 +466,179 @@ class DatabaseResourceManager(BaseResourceManager):
 
     def _write_resources_to_file(self, file, resources):
         """将数据库资源信息写入不同的文件"""
-        try:
-            # 确保 logs 目录存在
-            os.makedirs('logs', exist_ok=True)
+        # 确保 logs 目录存在
+        os.makedirs('logs', exist_ok=True)
+        
+        # 用于记录成功写入的报告
+        successful_reports = []
+        
+        # 写入各类资源信息
+        if self._write_postgresql_info(resources['postgresql']):
+            successful_reports.append("postgresql")
             
-            # 写入PostgreSQL实例信息
-            if resources['postgresql']:
-                with open('logs/postgresql_info.md', 'w', encoding='utf-8') as f:
-                    f.write("# PostgreSQL实例信息记录\n\n")
-                    f.write("## 记录时间\n")
-                    f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                    f.write("## PostgreSQL实例列表\n")
-                    f.write("---\n\n")
-                    f.write("| 实例名称 | 实例ID | 引擎版本 | 实例类型 | 状态 | 创建时间 | 过期时间 | 计费类型 | VPC ID | 子网ID | 可用区 | 存储空间(GB) | 存储类型 | 公网地址 | 公网端口 | 内网地址 | 内网端口 | 标签 |\n")
-                    f.write("|----------|---------|----------|----------|------|----------|----------|----------|---------|---------|--------|--------------|----------|----------|----------|----------|----------|------|\n")
-                    for instance in resources['postgresql']:
-                        tags_str = "; ".join([f"{tag.key}: {tag.value}" for tag in instance['tags']]) if instance['tags'] else ""
-                        f.write(f"| {instance['instance_name']} | {instance['instance_id']} | {instance['engine_version']} | {instance['instance_type']} | {instance['instance_status']} | {instance['create_time']} | {instance['expire_time']} | {instance['charge_type']} | {instance['vpc_id']} | {instance['subnet_id']} | {instance['zone_id']} | {instance['storage_space']} | {instance['storage_type']} | {instance['connection_info']['public_endpoint']} | {instance['connection_info']['public_port']} | {instance['connection_info']['private_endpoint']} | {instance['connection_info']['private_port']} | {tags_str} |\n")
+        if self._write_mongodb_info(resources['mongodb']):
+            successful_reports.append("mongodb")
+            
+        if self._write_elasticsearch_info(resources['elasticsearch']):
+            successful_reports.append("elasticsearch")
+            
+        if self._write_kafka_info(resources['kafka']):
+            successful_reports.append("kafka")
+            
+        if self._write_redis_info(resources['redis']):
+            successful_reports.append("redis")
 
-            # 写入MongoDB实例信息
-            if resources['mongodb']:
-                with open('logs/mongodb_info.md', 'w', encoding='utf-8') as f:
-                    f.write("# MongoDB实例信息记录\n\n")
-                    f.write("## 记录时间\n")
-                    f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                    f.write("## MongoDB实例列表\n")
-                    f.write("---\n\n")
-                    f.write("| 实例名称 | 实例ID | 引擎版本 | 实例类型 | 状态 | 创建时间 | 过期时间 | 计费类型 | VPC ID | 子网ID | 可用区 | 存储类型 | 公网地址 | 公网端口 | 内网地址 | 内网端口 | 标签 |\n")
-                    f.write("|----------|---------|----------|----------|------|----------|----------|----------|---------|---------|--------|----------|----------|----------|----------|----------|----------|------|\n")
-                    for instance in resources['mongodb']:
-                        tags_str = "; ".join([f"{tag.key}: {tag.value}" for tag in instance['tags']]) if instance['tags'] else ""
-                        f.write(f"| {instance['instance_name']} | {instance['instance_id']} | {instance['engine_version']} | {instance['instance_type']} | {instance['instance_status']} | {instance['create_time']} | {instance['expire_time']} | {instance['charge_type']} | {instance['vpc_id']} | {instance['subnet_id']} | {instance['zone_id']} | {instance['storage_type']} | {instance['connection_info']['public_endpoint']} | {instance['connection_info']['public_port']} | {instance['connection_info']['private_endpoint']} | {instance['connection_info']['private_port']} | {tags_str} |\n")
+        # 写入索引文件
+        if successful_reports:
+            self._write_index_file(successful_reports)
+            
+        return len(successful_reports) > 0
 
-            # 写入Elasticsearch实例信息
-            if resources['elasticsearch']:
-                with open('logs/elasticsearch_info.md', 'w', encoding='utf-8') as f:
-                    f.write("# Elasticsearch实例信息记录\n\n")
-                    f.write("## 记录时间\n")
-                    f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                    f.write("## Elasticsearch实例列表\n")
-                    f.write("---\n\n")
-                    f.write("| 实例名称 | 实例ID | 引擎版本 | 实例类型 | 状态 | 创建时间 | 过期时间 | 计费类型 | VPC ID | 子网ID | 可用区 | 存储空间(GB) | 存储类型 | 公网地址 | 公网端口 | 内网地址 | 内网端口 | Kibana地址 | Cerebro地址 | 维护时间 | 删除保护 | 标签 |\n")
-                    f.write("|----------|---------|----------|----------|------|----------|----------|----------|---------|---------|--------|--------------|----------|----------|----------|----------|----------|------------|------------|----------|------------|------|\n")
-                    for instance in resources['elasticsearch']:
-                        tags_str = "; ".join([f"{tag.key}: {tag.value}" for tag in instance['tags']]) if instance['tags'] else ""
-                        f.write(f"| {instance['instance_name']} | {instance['instance_id']} | {instance['engine_version']} | {instance['instance_type']} | {instance['instance_status']} | {instance['create_time']} | {instance['expire_time']} | {instance['charge_type']} | {instance['vpc_id']} | {instance['subnet_id']} | {instance['zone_id']} | {instance['storage_space']} | {instance['storage_type']} | {instance['connection_info']['public_endpoint']} | {instance['connection_info']['public_port']} | {instance['connection_info']['private_endpoint']} | {instance['connection_info']['private_port']} | {instance['kibana_endpoint']} | {instance['cerebro_endpoint']} | {instance['maintenance_time']} | {instance['deletion_protection']} | {tags_str} |\n")
+    def _write_postgresql_info(self, instances):
+        """写入PostgreSQL实例信息"""
+        try:
+            if not instances:
+                return False
 
-            # 写入Kafka实例信息
-            if resources['kafka']:
-                with open('logs/kafka_info.md', 'w', encoding='utf-8') as f:
-                    f.write("# Kafka实例信息记录\n\n")
-                    f.write("## 记录时间\n")
-                    f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                    f.write("## Kafka实例列表\n")
-                    f.write("---\n\n")
-                    f.write("| 实例名称 | 实例ID | 引擎版本 | 实例类型 | 状态 | 创建时间 | 过期时间 | 计费类型 | VPC ID | 子网ID | 可用区 | 存储空间(GB) | 存储类型 | 公网地址 | 公网端口 | 内网地址 | 内网端口 | 标签 |\n")
-                    f.write("|----------|---------|----------|----------|------|----------|----------|----------|---------|---------|--------|--------------|----------|----------|----------|----------|----------|------|\n")
-                    for instance in resources['kafka']:
-                        tags_str = "; ".join([f"{tag.key}: {tag.value}" for tag in instance['tags']]) if instance['tags'] else ""
-                        f.write(f"| {instance['instance_name']} | {instance['instance_id']} | {instance['engine_version']} | {instance['instance_type']} | {instance['instance_status']} | {instance['create_time']} | {instance['expire_time']} | {instance['charge_type']} | {instance['vpc_id']} | {instance['subnet_id']} | {instance['zone_id']} | {instance['storage_space']} | {instance['storage_type']} | {instance['connection_info']['public_endpoint']} | {instance['connection_info']['public_port']} | {instance['connection_info']['private_endpoint']} | {instance['connection_info']['private_port']} | {tags_str} |\n")
+            with open('markdown/postgresql_info.md', 'w', encoding='utf-8') as f:
+                f.write("# PostgreSQL实例信息记录\n\n")
+                f.write("## 记录时间\n")
+                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                f.write("## PostgreSQL实例列表\n")
+                f.write("---\n\n")
+                f.write("| 实例名称 | 实例ID | 引擎版本 | 实例类型 | 状态 | 创建时间 | 过期时间 | 计费类型 | VPC ID | 子网ID | 可用区 | 存储空间(GB) | 存储类型 | 公网地址 | 公网端口 | 内网地址 | 内网端口 | 标签 |\n")
+                f.write("|----------|---------|----------|----------|------|----------|----------|----------|---------|---------|--------|--------------|----------|----------|----------|----------|----------|------|\n")
+                for instance in instances:
+                    tags_str = "; ".join([f"{tag.key}: {tag.value}" for tag in instance['tags']]) if instance['tags'] else ""
+                    f.write(f"| {instance['instance_name']} | {instance['instance_id']} | {instance['engine_version']} | {instance['instance_type']} | {instance['instance_status']} | {instance['create_time']} | {instance['expire_time']} | {instance['charge_type']} | {instance['vpc_id']} | {instance['subnet_id']} | {instance['zone_id']} | {instance['storage_space']} | {instance['storage_type']} | {instance['connection_info']['public_endpoint']} | {instance['connection_info']['public_port']} | {instance['connection_info']['private_endpoint']} | {instance['connection_info']['private_port']} | {tags_str} |\n")
+            print("写入PostgreSQL实例信息成功，写入路径：logs/postgresql_info.md")
+            return True
+        except Exception as e:
+            self.logger.error(f"写入PostgreSQL资源信息时发生错误: {e}")
+            return False
 
-            # 写入Redis实例信息
-            if resources['redis']:
-                with open('logs/redis_info.md', 'w', encoding='utf-8') as f:
-                    f.write("# Redis实例信息记录\n\n")
-                    f.write("## 记录时间\n")
-                    f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                    f.write("## Redis实例列表\n")
-                    f.write("---\n\n")
-                    f.write("| 实例名称 | 实例ID | 引擎版本 | 实例类型 | 状态 | 创建时间 | 过期时间 | 计费类型 | VPC ID | 子网ID | 可用区 | 存储空间(GB) | 存储类型 | 公网地址 | 公网端口 | 内网地址 | 内网端口 | 标签 |\n")
-                    f.write("|----------|---------|----------|----------|------|----------|----------|----------|---------|---------|--------|--------------|----------|----------|----------|----------|----------|------|\n")
-                    for instance in resources['redis']:
-                        tags_str = "; ".join([f"{tag.key}: {tag.value}" for tag in instance['tags']]) if instance['tags'] else ""
-                        f.write(f"| {instance['instance_name']} | {instance['instance_id']} | {instance['engine_version']} | {instance['instance_type']} | {instance['instance_status']} | {instance['create_time']} | {instance['expire_time']} | {instance['charge_type']} | {instance['vpc_id']} | {instance['subnet_id']} | {instance['zone_id']} | {instance['storage_space']} | {instance['storage_type']} | {instance['connection_info']['public_endpoint']} | {instance['connection_info']['public_port']} | {instance['connection_info']['private_endpoint']} | {instance['connection_info']['private_port']} | {tags_str} |\n")
+    def _write_mongodb_info(self, instances):
+        """写入MongoDB实例信息"""
+        try:
+            if not instances:
+                return False
+                
+            with open('markdown/mongodb_info.md', 'w', encoding='utf-8') as f:
+                f.write("# MongoDB实例信息记录\n\n")
+                f.write("## 记录时间\n") 
+                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                f.write("## MongoDB实例列表\n")
+                f.write("---\n\n")
+                f.write("| 实例名称 | 实例ID | 引擎版本 | 实例类型 | 状态 | 创建时间 | 过期时间 | 计费类型 | VPC ID | 子网ID | 可用区 | 存储类型 | 公网连接串 | 内网连接串 | 标签 |\n")
+                f.write("|----------|---------|----------|----------|------|----------|----------|----------|---------|---------|--------|----------|------------|------------|------|\n")
+                for instance in instances:
+                    tags_str = "; ".join([f"{tag.key}: {tag.value}" for tag in instance['tags']]) if instance['tags'] else ""
+                    public_conn = f"mongodb://<user>:<password>@{instance['connection_info']['public_endpoint']}:{instance['connection_info']['public_port']}/?authSource=admin&retryWrites=true"
+                    private_conn = f"mongodb://<user>:<password>@{instance['connection_info']['private_endpoint']}:{instance['connection_info']['private_port']}/?authSource=admin&retryWrites=true"
+                    f.write(f"| {instance['instance_name']} | {instance['instance_id']} | {instance['engine_version']} | {instance['instance_type']} | {instance['instance_status']} | {instance['create_time']} | {instance['expire_time']} | {instance['charge_type']} | {instance['vpc_id']} | {instance['subnet_id']} | {instance['zone_id']} | {instance['storage_type']} | {public_conn} | {private_conn} | {tags_str} |\n")
 
-            # 创建一个索引文件，列出所有生成的报告
-            with open('logs/database_reports_index.md', 'w', encoding='utf-8') as f:
+            print("写入MongoDB实例信息成功，写入路径：logs/mongodb_info.md")
+            return True
+        except Exception as e:
+            self.logger.error(f"写入MongoDB资源信息时发生错误: {e}")
+            return False
+
+    def _write_elasticsearch_info(self, instances):
+        """写入Elasticsearch实例信息"""
+        try:
+            if not instances:
+                return False
+                
+            with open('markdown/elasticsearch_info.md', 'w', encoding='utf-8') as f:
+                f.write("# Elasticsearch实例信息记录\n\n")
+                f.write("## 记录时间\n")
+                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                f.write("## Elasticsearch实例列表\n")
+                f.write("---\n\n")
+                f.write("| 实例名称 | 实例ID | 引擎版本 | 实例类型 | 状态 | 创建时间 | 过期时间 | 计费类型 | VPC ID | 子网ID | 可用区 | 存储空间(GB) | 存储类型 | 公网地址 | 公网端口 | 内网地址 | 内网端口 | Kibana地址 | Cerebro地址 | 维护时间 | 删除保护 | 标签 |\n")
+                f.write("|----------|---------|----------|----------|------|----------|----------|----------|---------|---------|--------|--------------|----------|----------|----------|----------|----------|------------|------------|----------|------------|------|\n")
+                for instance in instances:
+                    tags_str = "; ".join([f"{tag.key}: {tag.value}" for tag in instance['tags']]) if instance['tags'] else ""
+                    f.write(f"| {instance['instance_name']} | {instance['instance_id']} | {instance['engine_version']} | {instance['instance_type']} | {instance['instance_status']} | {instance['create_time']} | {instance['expire_time']} | {instance['charge_type']} | {instance['vpc_id']} | {instance['subnet_id']} | {instance['zone_id']} | {instance['storage_space']} | {instance['storage_type']} | {instance['connection_info']['public_endpoint']} | {instance['connection_info']['public_port']} | {instance['connection_info']['private_endpoint']} | {instance['connection_info']['private_port']} | {instance['kibana_endpoint']} | {instance['cerebro_endpoint']} | {instance['maintenance_time']} | {instance['deletion_protection']} | {tags_str} |\n")
+            print("写入Elasticsearch实例信息成功，写入路径：logs/elasticsearch_info.md")
+            return True
+        except Exception as e:
+            self.logger.error(f"写入Elasticsearch资源信息时发生错误: {e}")
+            return False
+
+    def _write_kafka_info(self, instances):
+        """写入Kafka实例信息"""
+        try:
+            if not instances:
+                return False
+                
+            with open('markdown/kafka_info.md', 'w', encoding='utf-8') as f:
+                f.write("# Kafka实例信息记录\n\n")
+                f.write("## 记录时间\n")
+                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                f.write("## Kafka实例列表\n")
+                f.write("---\n\n")
+                f.write("| 实例名称 | 实例ID | 引擎版本 | 实例类型 | 状态 | 创建时间 | 过期时间 | 计费类型 | VPC ID | 子网ID | 可用区 | 存储空间(GB) | 存储类型 | 公网地址 | 公网端口 | 内网地址 | 内网端口 | 标签 |\n")
+                f.write("|----------|---------|----------|----------|------|----------|----------|----------|---------|---------|--------|--------------|----------|----------|----------|----------|----------|------|\n")
+                for instance in instances:
+                    tags_str = "; ".join([f"{tag.key}: {tag.value}" for tag in instance['tags']]) if instance['tags'] else ""
+                    f.write(f"| {instance['instance_name']} | {instance['instance_id']} | {instance['engine_version']} | {instance['instance_type']} | {instance['instance_status']} | {instance['create_time']} | {instance['expire_time']} | {instance['charge_type']} | {instance['vpc_id']} | {instance['subnet_id']} | {instance['zone_id']} | {instance['storage_space']} | {instance['storage_type']} | {instance['connection_info']['public_endpoint']} | {instance['connection_info']['public_port']} | {instance['connection_info']['private_endpoint']} | {instance['connection_info']['private_port']} | {tags_str} |\n")
+
+            print("写入Kafka实例信息成功，写入路径：logs/kafka_info.md")
+            return True
+        except Exception as e:
+            self.logger.error(f"写入Kafka资源信息时发生错误: {e}")
+            return False
+
+    def _write_redis_info(self, instances):
+        """写入Redis实例信息"""
+        try:
+            if not instances:
+                return False
+                
+            with open('markdown/redis_info.md', 'w', encoding='utf-8') as f:
+                f.write("# Redis实例信息记录\n\n")
+                f.write("## 记录时间\n")
+                f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                f.write("## Redis实例列表\n")
+                f.write("---\n\n")
+                f.write("| 实例名称 | 实例ID | 引擎版本 | 实例类型 | 状态 | 创建时间 | 过期时间 | 计费类型 | VPC ID | 子网ID | 可用区 | 存储空间(GB) | 存储类型 | 公网地址 | 公网端口 | 内网地址 | 内网端口 | 标签 |\n")
+                f.write("|----------|---------|----------|----------|------|----------|----------|----------|---------|---------|--------|--------------|----------|----------|----------|----------|----------|------|\n")
+                for instance in instances:
+                    tags_str = "; ".join([f"{tag.key}: {tag.value}" for tag in instance['tags']]) if instance['tags'] else ""
+                    f.write(f"| {instance['instance_name']} | {instance['instance_id']} | {instance['engine_version']} | {instance['instance_type']} | {instance['instance_status']} | {instance['create_time']} | {instance['expire_time']} | {instance['charge_type']} | {instance['vpc_id']} | {instance['subnet_id']} | {instance['zone_id']} | {instance['storage_space']} | {instance['storage_type']} | {instance['connection_info']['public_endpoint']} | {instance['connection_info']['public_port']} | {instance['connection_info']['private_endpoint']} | {instance['connection_info']['private_port']} | {tags_str} |\n")
+            print("写入Redis实例信息成功，写入路径：logs/redis_info.md")
+            return True
+        except Exception as e:
+            self.logger.error(f"写入Redis资源信息时发生错误: {e}")
+            return False
+
+    def _write_index_file(self, successful_reports):
+        """写入索引文件"""
+        try:
+            with open('markdown/database_reports_index.md', 'w', encoding='utf-8') as f:
                 f.write("# 数据库资源报告索引\n\n")
                 f.write("## 生成时间\n")
                 f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
                 f.write("## 报告列表\n")
                 f.write("---\n\n")
-                if resources['postgresql']:
-                    f.write("- [PostgreSQL实例报告](postgresql_info.md)\n")
-                if resources['mongodb']:
-                    f.write("- [MongoDB实例报告](mongodb_info.md)\n")
-                if resources['elasticsearch']:
-                    f.write("- [Elasticsearch实例报告](elasticsearch_info.md)\n")
-                if resources['kafka']:
-                    f.write("- [Kafka实例报告](kafka_info.md)\n")
-                if resources['redis']:
-                    f.write("- [Redis实例报告](redis_info.md)\n")
+                
+                report_mappings = {
+                    "postgresql": "PostgreSQL实例报告",
+                    "mongodb": "MongoDB实例报告", 
+                    "elasticsearch": "Elasticsearch实例报告",
+                    "kafka": "Kafka实例报告",
+                    "redis": "Redis实例报告"
+                }
+                
+                for report_type in successful_reports:
+                    f.write(f"- [{report_mappings[report_type]}]({report_type}_info.md)\n")
 
+            print("写入索引文件成功，写入路径：logs/database_reports_index.md")
+            return True
         except Exception as e:
-            self.logger.error(f"写入数据库资源信息到文件时发生错误: {e}")
-            raise
+            self.logger.error(f"写入索引文件时发生错误: {e}")
+            return False
 
 def main():
     try:

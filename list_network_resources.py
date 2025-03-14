@@ -217,14 +217,30 @@ class NetworkResourceManager(BaseResourceManager):
                         file.write(f"| {vpc['vpc_name']} | {sg['security_group_name']} | 出站 | {rule['protocol']} | {rule['port_range']} | {rule['cidr_ip']} | {rule['source_group_id']} | {rule['policy']} | {rule['priority']} | {rule['description']} |\n")
         file.write("\n")
 
-def main():
-    try:
-        manager = NetworkResourceManager()
-        resources = manager.list_resources()
-        manager.write_to_markdown(resources)
-        print("成功完成所有网络资源信息的收集和记录")
-    except Exception as e:
-        print(f"执行过程中发生错误: {e}")
+
+    def list_and_write_resources(self):
+        """收集并记录网络资源信息
+        
+        获取所有网络资源信息并写入Markdown文件。
+        """
+        try:
+            manager = NetworkResourceManager()
+            resources = manager.list_resources()
+            
+            # 确保logs目录存在
+            os.makedirs('./markdown', exist_ok=True)
+            
+            # 写入Markdown文件
+            with open('./markdown/network_resources.md', 'w', encoding='utf-8') as f:
+                manager._write_resources_to_file(f, resources)
+                
+            manager.logger.info('网络资源信息已写入 ./markdown/network_resources.md')
+            print("成功完成所有网络资源信息的收集和记录")
+            return True
+        except Exception as e:
+            print(f"执行过程中发生错误: {e}")
+            return False
 
 if __name__ == "__main__":
-    main()
+    manager = NetworkResourceManager()
+    manager.list_and_write_resources()

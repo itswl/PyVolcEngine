@@ -38,7 +38,10 @@ class EIPResourceManager(BaseResourceManager):
     def list_resources(self):
         """列出所有EIP详细信息"""
         try:
-            request = volcenginesdkvpc.DescribeEipAddressesRequest()
+            request = volcenginesdkvpc.DescribeEipAddressesRequest(
+                page_number=1,
+                page_size=100,
+            )
             response = self.vpc_api.describe_eip_addresses(request)
             if not hasattr(response, 'eip_addresses'):
                 self.logger.info("未找到任何EIP资源")
@@ -88,14 +91,29 @@ class EIPResourceManager(BaseResourceManager):
             file.write(f"| {eip['eip_address']} | {eip['allocation_id']} | {eip['status']} | {eip['isp']} | {eip['bandwidth']} | {eip['billing_type']} | {eip['release_with_instance']} | {eip['allocation_time']} | {eip['name']} | {eip['description']} | {eip['updated_at']} | {eip['expired_time']} | {eip['project_name']} | {eip['instance_id']} | {eip['instance_type']} | {eip['network_interface_id']} | {eip['private_ip_address']} | {tags_str} |\n")
         file.write("\n")
 
-def main():
-    try:
-        manager = EIPResourceManager()
-        eips = manager.list_resources()
-        manager.write_to_markdown(eips)
-        print("成功完成所有EIP资源信息的收集和记录")
-    except Exception as e:
-        print(f"执行过程中发生错误: {e}")
+    def list_and_write_resources(self):
+        """收集并记录EIP资源信息
+        
+        获取所有EIP资源信息并写入Markdown文件。
+        """
+        try:
+            manager = EIPResourceManager()
+            eips = manager.list_resources()
+            
+            # 确保logs目录存在
+            os.makedirs('./markdown', exist_ok=True)
+            
+            # 写入Markdown文件
+            with open('./markdown/eip_resources.md', 'w', encoding='utf-8') as f:
+                manager._write_resources_to_file(f, eips)
+                
+            manager.logger.info('EIP资源信息已写入 ./markdown/eip_resources.md')
+            print("成功完成所有EIP资源信息的收集和记录")
+            return True
+        except Exception as e:
+            print(f"执行过程中发生错误: {e}")
+            return False
 
 if __name__ == "__main__":
-    main()
+    manager = EIPResourceManager()
+    manager.list_and_write_resources()

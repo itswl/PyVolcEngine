@@ -15,9 +15,10 @@ def print_menu():
     print("\n资源列表查询系统")
     print("-" * 30)
     print("1. 列出所有EIP资源")
-    print("2. 列出所有网络资源")
+    print("2. 列出所有网络资源") 
     print("3. 列出所有VKE集群")
     print("4. 列出所有数据库和消息队列资源")
+    print("99. 列出所有资源")
     print("0. 退出")
     print("-" * 30)
 
@@ -44,7 +45,7 @@ def main():
     while True:
         try:
             print_menu()
-            choice = input("请选择操作 (0-4): ").strip()
+            choice = input("请选择操作 : ").strip()
             
             if choice == '0':
                 print("感谢使用，再见！")
@@ -65,6 +66,9 @@ def main():
                 database_manager = DatabaseResourceManager()
                 database_manager.list_and_write_resources()
                 print("成功完成数据库和消息队列资源信息的收集和记录")
+            elif choice == '99':
+                list_all_resources()
+                print("成功完成所有资源信息的收集和记录")
             else:
                 print("无效的选择，请重新输入")
                 
