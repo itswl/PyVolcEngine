@@ -499,7 +499,9 @@ if __name__ == "__main__":
     response = list_zones()
     if response.success and response.data and "Result" in response.data and "Zones" in response.data["Result"]:
         for zone in response.data["Result"]["Zones"]:
-            print(f"ZID: {zone.get('ZID', 'N/A')}, ZoneName: {zone.get('ZoneName', 'N/A')}")
+            print('-' * 100)
+            print(f"ZID: {zone.get('ZID', 'N/A')}")
+            print(f"ZoneName: {zone.get('ZoneName', 'N/A')}")
     else:
         print(f"获取域名ID列表失败: {response.message}")
         

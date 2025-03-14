@@ -1,28 +1,47 @@
 import time
+import os
+import logging
+from functools import wraps
 from volcenginesdkcore.rest import ApiException
 import volcenginesdkvpc
+import volcenginesdkcore
 from configs.api_config import api_config
 from configs.eip_config import eip_configs
-import logging
-import volcenginesdkcore
 
-import os
 # 确保logs目录存在
-log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+BASE_DIR = os.path.dirname(__file__)
+log_dir = os.path.join(BASE_DIR, 'logs')
 os.makedirs(log_dir, exist_ok=True)
 
-# 配置日志记录
-# 添加文件处理器
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# 配置日志记录（优化日志配置，避免重复配置）
 logger = logging.getLogger(__name__)
-file_handler = logging.FileHandler(os.path.join(log_dir, 'eip_manager.log'))
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-logger.addHandler(file_handler)
+logger.setLevel(logging.INFO)
+# 避免重复添加处理器
+if not logger.handlers:
+    file_handler = logging.FileHandler(os.path.join(log_dir, 'eip_manager.log'))
+    console_handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
 
+# 资源信息文件路径
+RESOURCE_INFO_FILE = os.path.join(log_dir, 'eip_resource_info.md')
+
+# 装饰器：异常处理
+def handle_api_exception(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except ApiException as e:
+            logger.error(f"{func.__name__}执行过程中发生API异常: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"{func.__name__}执行过程中发生未知异常: {e}")
+            return None
+    return wrapper
 
 class EIPManager:
     def __init__(self):
@@ -37,232 +56,239 @@ class EIPManager:
         configuration.client_side_validation = True
         volcenginesdkcore.Configuration.set_default(configuration)
 
+    @handle_api_exception
+    def get_existing_eip_by_name(self, eip_name):
+        """根据EIP名称查找现有EIP"""
+        list_request = volcenginesdkvpc.DescribeEipAddressesRequest()
+        list_response = self.vpc_api.describe_eip_addresses(list_request)
+        if hasattr(list_response, 'eip_addresses'):
+            for eip in list_response.eip_addresses:
+                if eip.name == eip_name:
+                    logger.info(f"找到已存在的EIP: {eip.eip_address}")
+                    return eip.allocation_id, eip.eip_address, eip.name
+        return None, None, None
+
+    @handle_api_exception
+    def get_eip_by_id(self, eip_id):
+        """根据EIP ID查找EIP"""
+        list_request = volcenginesdkvpc.DescribeEipAddressesRequest()
+        list_response = self.vpc_api.describe_eip_addresses(list_request)
+        if hasattr(list_response, 'eip_addresses'):
+            for eip in list_response.eip_addresses:
+                if eip.allocation_id == eip_id:
+                    logger.info(f"找到指定的EIP ID: {eip_id}")
+                    return eip.allocation_id, eip.eip_address, eip.name
+        logger.error(f"未找到指定的EIP ID: {eip_id}")
+        return None, None, None
+    
+    @handle_api_exception
+    def get_eip_by_address(self, eip_address):
+        """根据EIP地址查找EIP"""
+        list_request = volcenginesdkvpc.DescribeEipAddressesRequest()
+        list_response = self.vpc_api.describe_eip_addresses(list_request)
+        if hasattr(list_response, 'eip_addresses'):
+            for eip in list_response.eip_addresses:
+                if eip.eip_address == eip_address:
+                    return eip.allocation_id
+        logger.error(f"未找到EIP地址 {eip_address} 对应的allocation_id")
+        return None
+
+    @handle_api_exception
     def allocate_eip(self, eip_name, specified_ip=None, specified_eip_id=None):
-        try:
-            # 如果指定了EIP ID，先检查是否存在
-            if specified_eip_id:
-                list_request = volcenginesdkvpc.DescribeEipAddressesRequest()
-                list_response = self.vpc_api.describe_eip_addresses(list_request)
-                if hasattr(list_response, 'eip_addresses'):
-                    for eip in list_response.eip_addresses:
-                        if eip.allocation_id == specified_eip_id:
-                            logger.info(f"找到指定的EIP ID: {specified_eip_id}")
-                            return eip.allocation_id, eip.eip_address, eip.name
-                logger.error(f"未找到指定的EIP ID: {specified_eip_id}")
-                return None, None, None
+        """申请EIP资源"""
+        # 如果指定了EIP ID，先检查是否存在
+        if specified_eip_id:
+            return self.get_eip_by_id(specified_eip_id)
 
-            # 获取EIP配置
-            if eip_name not in eip_configs:
-                logger.error(f"未找到名为 {eip_name} 的EIP配置")
-                return None, None, None
-                
-            eip_config = eip_configs[eip_name]
-            
-            # 先列出现有的 EIP
-            list_request = volcenginesdkvpc.DescribeEipAddressesRequest()
-            list_response = self.vpc_api.describe_eip_addresses(list_request)
-            # 检查是否已存在名为配置中指定的 EIP
-            if hasattr(list_response, 'eip_addresses'):
-                for eip in list_response.eip_addresses:
-                    if eip.name == eip_config['name']:
-                        logger.info(f"找到已存在的EIP: {eip.eip_address}")
-                        return eip.allocation_id, eip.eip_address, eip.name
-
-            # 如果不存在，创建新的 EIP
-            # 将period_unit从字符串映射为整数值
-            period_unit_map = {"Month": 1, "Year": 2}
-            period_unit = period_unit_map.get(eip_config['period_unit'], 1)  # 默认使用1（月）
-            
-            request = volcenginesdkvpc.AllocateEipAddressRequest(
-                billing_type=eip_config['billing_type'],
-                bandwidth=eip_config['bandwidth'],
-                isp=eip_config['isp'],
-                name=eip_config['name'],
-                description=eip_config['description'],
-                project_name=eip_config['project_name'],
-                period_unit=period_unit,
-                period=eip_config['period']
-            )
-
-            # 如果指定了IP地址，添加到请求中
-            if specified_ip:
-                request.eip_address = specified_ip
-            
-            response = self.vpc_api.allocate_eip_address(request)
-            logger.info(f"EIP申请成功: {response}")
-            return response.allocation_id, response.eip_address, eip_config['name']
-            
-        except ApiException as e:
-            logger.error(f"申请EIP时发生异常: {e}")
+        # 获取EIP配置
+        if eip_name not in eip_configs:
+            logger.error(f"未找到名为 {eip_name} 的EIP配置")
             return None, None, None
+            
+        eip_config = eip_configs[eip_name]
+        
+        # 先检查是否已存在名为配置中指定的 EIP
+        allocation_id, eip_address, name = self.get_existing_eip_by_name(eip_config['name'])
+        if allocation_id:
+            return allocation_id, eip_address, name
 
+        # 创建新的 EIP
+        # 将period_unit从字符串映射为整数值
+        period_unit_map = {"Month": 1, "Year": 2}
+        period_unit = period_unit_map.get(eip_config['period_unit'], 1)  # 默认使用1（月）
+        
+        request = volcenginesdkvpc.AllocateEipAddressRequest(
+            billing_type=eip_config['billing_type'],
+            bandwidth=eip_config['bandwidth'],
+            isp=eip_config['isp'],
+            name=eip_config['name'],
+            description=eip_config['description'],
+            project_name=eip_config['project_name'],
+            period_unit=period_unit,
+            period=eip_config['period']
+        )
+
+        # 如果指定了IP地址，添加到请求中
+        if specified_ip:
+            request.eip_address = specified_ip
+        
+        response = self.vpc_api.allocate_eip_address(request)
+        logger.info(f"EIP申请成功: {response}")
+        return response.allocation_id, response.eip_address, eip_config['name']
+
+    @handle_api_exception
     def release_eip(self, eip_address=None, allocation_id=None):
         """释放指定的EIP资源
         :param eip_address: EIP地址
         :param allocation_id: EIP的分配ID
         :return: bool 操作是否成功
         """
-        try:
-            # 如果提供了allocation_id，直接使用
-            if allocation_id:
-                release_request = volcenginesdkvpc.ReleaseEipAddressRequest(
-                    allocation_id=allocation_id
-                )
-                self.vpc_api.release_eip_address(release_request)
-                logger.info(f"已成功释放EIP，allocation_id: {allocation_id}")
-                return True
-
-            # 如果提供了eip_address，需要先查找对应的allocation_id
-            if eip_address:
-                list_request = volcenginesdkvpc.DescribeEipAddressesRequest()
-                list_response = self.vpc_api.describe_eip_addresses(list_request)
-                
-                allocation_id = None
-                if hasattr(list_response, 'eip_addresses'):
-                    for eip in list_response.eip_addresses:
-                        if eip.eip_address == eip_address:
-                            allocation_id = eip.allocation_id
-                            break
-                
-                if not allocation_id:
-                    logger.error(f"未找到EIP地址 {eip_address} 对应的allocation_id")
-                    return False
-                
-                release_request = volcenginesdkvpc.ReleaseEipAddressRequest(
-                    allocation_id=allocation_id
-                )
-                self.vpc_api.release_eip_address(release_request)
-                logger.info(f"已成功释放EIP: {eip_address}")
-                return True
-            
+        # 参数验证
+        if not allocation_id and not eip_address:
             logger.error("需要提供eip_address或allocation_id参数")
             return False
             
-        except ApiException as e:
-            logger.error(f"释放EIP时发生错误: {e}")
-            return False
+        # 如果提供了eip_address但没有allocation_id，需要先查找对应的allocation_id
+        if eip_address and not allocation_id:
+            allocation_id = self.get_eip_by_address(eip_address)
+            if not allocation_id:
+                return False
+        
+        # 释放EIP
+        print(f"释放EIP，allocation_id: {allocation_id}")
+        release_request = volcenginesdkvpc.ReleaseEipAddressRequest(
+            allocation_id=allocation_id
+        )
+        self.vpc_api.release_eip_address(release_request)
+        logger.info(f"已成功释放EIP，allocation_id: {allocation_id}")
+        return True
 
+def write_resource_info(records, action_type="创建"):
+    """将资源信息写入文件
+    :param records: 资源记录列表
+    :param action_type: 操作类型("创建"或"释放")
+    """
+    with open(RESOURCE_INFO_FILE, 'a', encoding='utf-8') as f:
+        f.write(f"\n{'='*50}\n")
+        f.write(f"记录时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        f.write(f"# EIP资源{action_type}记录\n\n")
+        
+        for record in records:
+            if action_type == "创建":
+                eip_config = eip_configs.get(record['name'], {})
+                f.write(f"## EIP: {record['name']}\n")
+                f.write(f"### 基本信息\n")
+                f.write(f"- 分配ID: {record['allocation_id']}\n")
+                f.write(f"- EIP地址: {record['eip_address']}\n")
+                f.write(f"- 创建时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                
+                f.write(f"### 配置信息\n")
+                f.write(f"- 计费类型: {eip_config.get('billing_type', 'N/A')}\n")
+                f.write(f"- 带宽: {eip_config.get('bandwidth', 'N/A')} Mbps\n")
+                f.write(f"- ISP: {eip_config.get('isp', 'N/A')}\n")
+                f.write(f"- 项目名称: {eip_config.get('project_name', 'N/A')}\n")
+                f.write(f"- 计费周期: {eip_config.get('period', 'N/A')} {eip_config.get('period_unit', 'N/A')}\n")
+                f.write(f"- 描述: {eip_config.get('description', 'N/A')}\n\n")
+            else:
+                f.write(f"## EIP: {record['eip_identifier']}\n")
+                f.write(f"- 状态: {'成功' if record['status'] == 'success' else '失败'}\n")
+                f.write(f"- 释放时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+
+@handle_api_exception
 def create_eips():
     """创建EIP资源"""
-    try:
-        # 创建EIP管理器实例
-        eip_manager = EIPManager()
-        
-        # 检查EIP配置是否为空
-        if not eip_configs:
-            logger.error("EIP配置为空，请检查配置文件")
-            return
-            
-        # 遍历所有EIP配置
-        created_eips = []
-        for eip_name in eip_configs:
-            logger.info(f"准备创建EIP: {eip_name}")
-            logger.info(f"EIP配置信息:\n" + 
-                       f"- 计费类型: {eip_configs[eip_name]['billing_type']}\n" + 
-                       f"- 带宽: {eip_configs[eip_name]['bandwidth']} Mbps\n" + 
-                       f"- ISP: {eip_configs[eip_name]['isp']}\n" + 
-                       f"- 名称: {eip_configs[eip_name]['name']}\n" + 
-                       f"- 项目: {eip_configs[eip_name]['project_name']}\n" + 
-                       f"- 计费周期: {eip_configs[eip_name]['period']} {eip_configs[eip_name]['period_unit']}")
-            
-            # 创建EIP
-            logger.info(f"开始创建EIP {eip_name}...")
-            allocation_id, eip_address, eip_name = eip_manager.allocate_eip(eip_name)
-            if not allocation_id:
-                logger.error(f"EIP {eip_name} 创建失败")
-                continue
-                
-            logger.info(f"成功创建EIP {eip_name}:\n- 分配ID: {allocation_id}\n- EIP地址: {eip_address}")
-            created_eips.append({
-                'name': eip_name,
-                'allocation_id': allocation_id,
-                'eip_address': eip_address
-            })
-        
-        # 输出创建结果汇总
-        if created_eips:
-            logger.info("\n=== EIP创建结果汇总 ===")
-            for eip in created_eips:
-                logger.info(f"EIP {eip['name']}:\n- 分配ID: {eip['allocation_id']}\n- EIP地址: {eip['eip_address']}")
-                
-            # 将EIP资源信息写入日志文件，使用追加模式
-            with open('eip_resource_info.md', 'a', encoding='utf-8') as f:
-                # 添加分隔符和时间戳
-                f.write(f"\n{'='*50}\n")
-                f.write(f"记录时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                f.write(f"# EIP资源创建记录\n\n")
-                
-                for eip_name in created_eips:
-                    eip_config = eip_configs[eip_name['name']]
-                    f.write(f"## EIP: {eip_name['name']}\n")
-                    f.write(f"### 基本信息\n")
-                    f.write(f"- 分配ID: {eip_name['allocation_id']}\n")
-                    f.write(f"- EIP地址: {eip_name['eip_address']}\n")
-                    f.write(f"- 创建时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                    
-                    f.write(f"### 配置信息\n")
-                    f.write(f"- 计费类型: {eip_config['billing_type']}\n")
-                    f.write(f"- 带宽: {eip_config['bandwidth']} Mbps\n")
-                    f.write(f"- ISP: {eip_config['isp']}\n")
-                    f.write(f"- 项目名称: {eip_config['project_name']}\n")
-                    f.write(f"- 计费周期: {eip_config['period']} {eip_config['period_unit']}\n")
-                    f.write(f"- 描述: {eip_config['description']}\n\n")
-        else:
-            logger.warning("没有成功创建任何EIP")
-            
-    except Exception as e:
-        logger.error(f"创建EIP过程中发生错误: {e}")
+    # 检查EIP配置是否为空
+    if not eip_configs:
+        logger.error("EIP配置为空，请检查配置文件")
         return
+        
+    # 创建EIP管理器实例
+    eip_manager = EIPManager()
+    
+    # 遍历所有EIP配置
+    created_eips = []
+    for eip_name in eip_configs:
+        logger.info(f"准备创建EIP: {eip_name}")
+        config = eip_configs[eip_name]
+        logger.info(f"EIP配置信息:\n" + 
+                   f"- 计费类型: {config['billing_type']}\n" + 
+                   f"- 带宽: {config['bandwidth']} Mbps\n" + 
+                   f"- ISP: {config['isp']}\n" + 
+                   f"- 名称: {config['name']}\n" + 
+                   f"- 项目: {config['project_name']}\n" + 
+                   f"- 计费周期: {config['period']} {config['period_unit']}")
+        
+        # 创建EIP
+        logger.info(f"开始创建EIP {eip_name}...")
+        allocation_id, eip_address, eip_name = eip_manager.allocate_eip(eip_name)
+        if not allocation_id:
+            logger.error(f"EIP {eip_name} 创建失败")
+            continue
+            
+        logger.info(f"成功创建EIP {eip_name}:\n- 分配ID: {allocation_id}\n- EIP地址: {eip_address}")
+        created_eips.append({
+            'name': eip_name,
+            'allocation_id': allocation_id,
+            'eip_address': eip_address
+        })
+    
+    # 输出创建结果汇总
+    if created_eips:
+        logger.info("\n=== EIP创建结果汇总 ===")
+        for eip in created_eips:
+            logger.info(f"EIP {eip['name']}:\n- 分配ID: {eip['allocation_id']}\n- EIP地址: {eip['eip_address']}")
+        # 记录创建结果
+        write_resource_info(created_eips, "创建")
+    else:
+        logger.warning("没有成功创建任何EIP")
 
-def release_eips(target_eip_addresses):
+@handle_api_exception
+def release_eips(target_eips):
     """释放指定的EIP资源
-    :param target_eip_addresses: 单个EIP地址或EIP地址列表
+    :param target_eips: 单个EIP ID/地址或其列表
     """
-    try:
-        # 创建EIP管理器实例
-        eip_manager = EIPManager()
+    # 创建EIP管理器实例
+    eip_manager = EIPManager()
+    
+    # 将单个输入转换为列表格式
+    if isinstance(target_eips, str):
+        target_eips = [target_eips]
         
-        # 将单个IP地址转换为列表格式
-        if isinstance(target_eip_addresses, str):
-            target_eip_addresses = [target_eip_addresses]
-            
-        if not target_eip_addresses:
-            logger.error("未指定要释放的EIP地址")
-            return
-            
-        logger.info("\n=== 开始释放指定的EIP ===")
-        released_results = []
-        
-        for target_eip_address in target_eip_addresses:
-            logger.info(f"正在释放EIP: {target_eip_address}")
-            if eip_manager.release_eip(target_eip_address):
-                logger.info(f"成功释放EIP: {target_eip_address}")
-                released_results.append({
-                    'eip_address': target_eip_address,
-                    'status': 'success'
-                })
-            else:
-                logger.error(f"释放EIP失败: {target_eip_address}")
-                released_results.append({
-                    'eip_address': target_eip_address,
-                    'status': 'failed'
-                })
-        
-        # 记录释放结果
-        if released_results:
-            eip_resource_info_path = os.path.join(log_dir, 'eip_resource_info.md')
-            with open(eip_resource_info_path, 'a', encoding='utf-8') as f:
-                f.write(f"\n{'='*50}\n")
-                f.write(f"记录时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                f.write(f"# EIP资源释放记录\n\n")
-                
-                for result in released_results:
-                    f.write(f"## EIP: {result['eip_address']}\n")
-                    f.write(f"- 状态: {'成功' if result['status'] == 'success' else '失败'}\n")
-                    f.write(f"- 释放时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-    except Exception as e:
-        logger.error(f"释放EIP过程中发生错误: {e}")
+    if not target_eips:
+        logger.error("未指定要释放的EIP")
         return
+        
+    logger.info("\n=== 开始释放指定的EIP ===")
+    released_results = []
+    
+    for target_eip in target_eips:
+        logger.info(f"正在释放EIP: {target_eip}")
+        # 判断是否为EIP ID（假设EIP ID格式为"eip-xxx"）
+        is_eip_id = target_eip.startswith('eip-')
+        
+        if is_eip_id:
+            success = eip_manager.release_eip(allocation_id=target_eip)
+            eip_identifier = target_eip
+        else:
+            success = eip_manager.release_eip(eip_address=target_eip)
+            eip_identifier = target_eip
+            
+        if success:
+            logger.info(f"成功释放EIP: {eip_identifier}")
+            released_results.append({
+                'eip_identifier': eip_identifier,
+                'status': 'success'
+            })
+        else:
+            logger.error(f"释放EIP失败: {eip_identifier}")
+            released_results.append({
+                'eip_identifier': eip_identifier,
+                'status': 'failed'
+            })
+    
+    # 记录释放结果
+    if released_results:
+        write_resource_info(released_results, "释放")
 
 if __name__ == '__main__':
     import argparse

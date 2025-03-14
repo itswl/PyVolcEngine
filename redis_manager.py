@@ -53,11 +53,11 @@ class RedisManager:
         #    检查是否已存在同名实例
             list_request = self.api.DescribeDBInstancesRequest()
             list_response = self.client_api.describe_db_instances(list_request)
-
-            for instance in list_response.instances:
-                if instance.instance_name == instance_config['instance']['name']:
-                    logger.info(f"实例已存在，实例ID: {instance.instance_id}")
-                    return instance.instance_id
+            if list_response.instances:
+                for instance in list_response.instances:
+                    if instance.instance_name == instance_config['instance']['name']:
+                        logger.info(f"实例已存在，实例ID: {instance.instance_id}")
+                        return instance.instance_id
 
             # 检查网络参数
             if not vpc_id or not subnet_id:
