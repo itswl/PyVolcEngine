@@ -26,6 +26,37 @@ file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(mes
 logger.addHandler(file_handler)
 
 
+def unbind_instance_whitelists(instance_id, product):
+    """解绑实例的所有白名单
+    Args:
+        instance_id: 实例ID
+        product: 产品类型
+    Returns:
+        bool: 解绑是否成功
+    """
+    try:
+        whitelist_manager = None
+        if product == 'Message_Queue_for_Kafka':
+            from whitelist_manager import KafkaWhitelistManager
+            whitelist_manager = KafkaWhitelistManager()
+        elif product == 'veDB for DocumentDB':
+            from whitelist_manager import MongoDBWhitelistManager
+            whitelist_manager = MongoDBWhitelistManager()
+        elif product == 'RDS for PostgreSQL':
+            from whitelist_manager import PostgreSQLWhitelistManager
+            whitelist_manager = PostgreSQLWhitelistManager()
+        elif product == 'veDB_for_Redis':
+            from whitelist_manager import RedisWhitelistManager
+            whitelist_manager = RedisWhitelistManager()
+
+        if whitelist_manager:
+            logger.info(f"正在解绑 {product} 实例 {instance_id} 的白名单...")
+            return whitelist_manager.unbind_whitelists_from_instance(instance_id)
+        return True
+    except Exception as e:
+        logger.error(f"解绑白名单时发生错误: {e}")
+        return False
+
 def unsubscribe_instance(instance_id, product="ESCloud", force=False):
     """退订指定的实例
     Args:
@@ -49,6 +80,11 @@ def unsubscribe_instance(instance_id, product="ESCloud", force=False):
             if confirm.lower() != 'y':
                 print("操作已取消")
                 return False
+
+        # 先解绑白名单
+        success = unbind_instance_whitelists(instance_id, product)
+        if not success:
+            logger.warning("白名单解绑失败，但将继续执行退订操作")
 
         # 创建退订请求
         api_instance = volcenginesdkbilling.BILLINGApi()
