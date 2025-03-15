@@ -94,47 +94,128 @@ class EIPManager:
         return None
 
     @handle_api_exception
-    def allocate_eip(self, eip_name, specified_ip=None, specified_eip_id=None):
-        """申请EIP资源"""
-        # 如果指定了EIP ID，先检查是否存在
-        if specified_eip_id:
-            return self.get_eip_by_id(specified_eip_id)
-
-        # 获取EIP配置
-        if eip_name not in eip_configs:
-            logger.error(f"未找到名为 {eip_name} 的EIP配置")
-            return None, None, None
+    def wait_for_eip_available(self, allocation_id, timeout=60, interval=5):
+        """等待EIP变为可用状态
+        
+        Args:
+            allocation_id: EIP的分配ID
+            timeout: 超时时间（秒）
+            interval: 检查间隔（秒）
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            list_request = volcenginesdkvpc.DescribeEipAddressesRequest()
+            list_response = self.vpc_api.describe_eip_addresses(list_request)
             
-        eip_config = eip_configs[eip_name]
+            if hasattr(list_response, 'eip_addresses'):
+                for eip in list_response.eip_addresses:
+                    if eip.allocation_id == allocation_id and eip.status == "Available":
+                        logger.info(f"EIP {allocation_id} 已经就绪")
+                        return True
+                    
+            logger.info(f"等待EIP {allocation_id} 就绪中...")
+            time.sleep(interval)
         
-        # 先检查是否已存在名为配置中指定的 EIP
-        allocation_id, eip_address, name = self.get_existing_eip_by_name(eip_config['name'])
-        if allocation_id:
-            return allocation_id, eip_address, name
+        logger.error(f"等待EIP {allocation_id} 就绪超时")
+        return False
 
-        # 创建新的 EIP
-        # 将period_unit从字符串映射为整数值
-        period_unit_map = {"Month": 1, "Year": 2}
-        period_unit = period_unit_map.get(eip_config['period_unit'], 1)  # 默认使用1（月）
+    @handle_api_exception
+    def allocate_eip(self, eip_config):
+        """
+        申请EIP
         
-        request = volcenginesdkvpc.AllocateEipAddressRequest(
-            billing_type=eip_config['billing_type'],
-            bandwidth=eip_config['bandwidth'],
-            isp=eip_config['isp'],
-            name=eip_config['name'],
-            description=eip_config['description'],
-            project_name=eip_config['project_name'],
-            period_unit=period_unit,
-            period=eip_config['period']
-        )
+        Args:
+            eip_config: 可以是eip_config.py中定义的EIP配置名称(字符串)，
+                       也可以是直接在redis_configs.py中定义的完整EIP配置(字典)
+        
+        Returns:
+            tuple: (eip_id, eip_address, eip_name)
+        """
+        try:
+            if isinstance(eip_config, str):
+                config_name = eip_config
+                
+                # 修复：正确访问eip_configs字典
+                if config_name not in eip_configs:
+                    logger.error(f"未找到名为 {config_name} 的EIP配置")
+                    return None, None, None
+                    
+                actual_config = eip_configs[config_name]
+                
+                # 检查现有EIP
+                allocation_id, eip_address, name = self.get_existing_eip_by_name(actual_config['name'])
+                if allocation_id:
+                    return allocation_id, eip_address, name
 
-        # 如果指定了IP地址，添加到请求中
-        if specified_ip:
-            request.eip_address = specified_ip
-        
-        response = self.vpc_api.allocate_eip_address(request)
-        logger.info(f"EIP申请成功: {response}")
-        return response.allocation_id, response.eip_address, eip_config['name']
+                # 创建新的 EIP
+                # 将period_unit从字符串映射为整数值
+                period_unit_map = {"Month": 1, "Year": 2}
+                period_unit = period_unit_map.get(actual_config['period_unit'], 1)  # 默认使用1（月）
+                
+                request = volcenginesdkvpc.AllocateEipAddressRequest(
+                    billing_type=actual_config['billing_type'],
+                    bandwidth=actual_config['bandwidth'],
+                    isp=actual_config['isp'],
+                    name=actual_config['name'],
+                    description=actual_config['description'],
+                    project_name=actual_config['project_name'],
+                    period_unit=period_unit,
+                    period=actual_config['period']
+                )
+
+                response = self.vpc_api.allocate_eip_address(request)
+                logger.info(f"EIP申请成功: {response}")
+                
+                # 等待EIP就绪
+                if not self.wait_for_eip_available(response.allocation_id):
+                    logger.error("EIP创建后未能及时就绪")
+                    return None, None, None
+                    
+                return response.allocation_id, response.eip_address, actual_config['name']
+                
+            elif isinstance(eip_config, dict):
+                # 直接使用传入的配置字典
+                actual_config = eip_config
+                
+                # 使用配置字典创建EIP
+                # 先检查是否已存在名为配置中指定的 EIP
+                allocation_id, eip_address, name = self.get_existing_eip_by_name(actual_config['name'])
+                if allocation_id:
+                    return allocation_id, eip_address, name
+
+                # 创建新的 EIP
+                # 将period_unit从字符串映射为整数值
+                period_unit_map = {"Month": 1, "Year": 2}
+                period_unit = period_unit_map.get(actual_config['period_unit'], 1)  # 默认使用1（月）
+                
+                request = volcenginesdkvpc.AllocateEipAddressRequest(
+                    billing_type=actual_config['billing_type'],
+                    bandwidth=actual_config['bandwidth'],
+                    isp=actual_config['isp'],
+                    name=actual_config['name'],
+                    description=actual_config['description'],
+                    project_name=actual_config['project_name'],
+                    period_unit=period_unit,
+                    period=actual_config['period']
+                )
+
+                response = self.vpc_api.allocate_eip_address(request)
+                logger.info(f"EIP申请成功: {response}")
+                
+                # 等待EIP就绪
+                if not self.wait_for_eip_available(response.allocation_id):
+                    logger.error("EIP创建后未能及时就绪")
+                    return None, None, None
+                    
+                return response.allocation_id, response.eip_address, actual_config['name']
+                
+            else:
+                logger.error(f"不支持的EIP配置类型: {type(eip_config)}")
+                return None, None, None
+            
+        except Exception as e:
+            logger.error(f"申请EIP时发生异常: {e}")
+            return None, None, None
 
     @handle_api_exception
     def release_eip(self, eip_address=None, allocation_id=None):
@@ -220,7 +301,7 @@ def create_eips():
         
         # 创建EIP
         logger.info(f"开始创建EIP {eip_name}...")
-        allocation_id, eip_address, eip_name = eip_manager.allocate_eip(eip_name)
+        allocation_id, eip_address, eip_name = eip_manager.allocate_eip(config)
         if not allocation_id:
             logger.error(f"EIP {eip_name} 创建失败")
             continue

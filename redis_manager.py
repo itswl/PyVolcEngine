@@ -294,6 +294,68 @@ class RedisManager:
         
         return False
 
+    def list_db_accounts(self, instance_id):
+        """获取Redis实例的所有数据库账号
+        
+        Args:
+            instance_id (str): Redis实例ID
+            
+        Returns:
+            list: 账号列表，如果查询失败则返回空列表
+        """
+        try:
+            list_db_account_request = self.api.ListDBAccountRequest(
+                instance_id=instance_id
+            )
+            
+            response = self.client_api.list_db_account(list_db_account_request)
+            if hasattr(response, 'accounts') and response.accounts:
+                logger.info(f"实例 {instance_id} 拥有 {len(response.accounts)} 个账号")
+                return response.accounts
+            else:
+                logger.info(f"实例 {instance_id} 没有找到账号")
+                return []
+                
+        except ApiException as e:
+            logger.error(f"查询数据库账号列表时发生异常: {e}")
+            return []
+    
+    def create_db_account(self, instance_id, account_name, password, role_name="ReadOnly"):
+        """创建Redis数据库账号，如果账号已存在则跳过创建
+        
+        Args:
+            instance_id (str): Redis实例ID
+            account_name (str): 账号名称
+            password (str): 账号密码
+            role_name (str, optional): 角色名称，默认为"ReadOnly"，可选值包括"ReadOnly"、"ReadWrite"、"NotDangerous"等
+            
+        Returns:
+            bool: 创建是否成功或账号是否已存在
+        """
+        try:
+            # 先检查账号是否已存在
+            existing_accounts = self.list_db_accounts(instance_id)
+            for account in existing_accounts:
+                if account.account_name == account_name:
+                    logger.info(f"账号 {account_name} 已存在于实例 {instance_id}，跳过创建")
+                    return True
+            
+            # 账号不存在，创建新账号
+            create_db_account_request = self.api.CreateDBAccountRequest(
+                account_name=account_name,
+                instance_id=instance_id,
+                password=password,
+                role_name=role_name,
+            )
+            
+            response = self.client_api.create_db_account(create_db_account_request)
+            logger.info(f"成功为实例 {instance_id} 创建数据库账号: {account_name}, 角色: {role_name}")
+            return True
+            
+        except ApiException as e:
+            logger.error(f"创建数据库账号时发生异常: {e}")
+            return False
+
 def main():
     instance_manager = RedisManager()
     vpc_manager = VPCManager()
@@ -394,6 +456,20 @@ def main():
         if not instance_manager.modify_instance_params(instance_id,param_name="disabled-commands",param_value="flushall,flushdb"):
             logger.error("修改实例参数配置失败")
             continue
+
+        # 在实例创建成功后，添加数据库账号
+        if 'accounts' in instance_config:
+            logger.info(f"开始为实例 {instance_id} 创建账号...")
+            for account in instance_config['accounts']:
+                if not instance_manager.create_db_account(
+                    instance_id=instance_id,
+                    account_name=account['username'],
+                    password=account['password'],
+                    role_name=account['account_type']
+                ):
+                    logger.error(f"创建账号 {account['username']} 失败")
+                    continue
+                logger.info(f"账号 {account['username']} 处理完成")
 
         # 记录实例创建成功的信息
         logger.info(f"\n成功完成实例 {instance_config['instance']['name']} 的所有操作！")

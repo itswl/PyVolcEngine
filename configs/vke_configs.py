@@ -106,7 +106,7 @@ CLUSTER_CONFIGS = [
                     ],
                     'initialize_script': 'SGVsbG8gZnJvbSBub2RlIGluaXRpYWxpemF0aW9u',
                     'additional_container_storage_enabled': True,
-                    'name_prefix': 'auto',
+                    'name_prefix': '',
                     'tags': [
                         {
                             'key': 'pool-type',
@@ -170,7 +170,7 @@ CLUSTER_CONFIGS = [
                     ],
                     'initialize_script': 'SGVsbG8gZnJvbSBub2RlIGluaXRpYWxpemF0aW9u',
                     'additional_container_storage_enabled': True,
-                    'name_prefix': 'default',
+                    'name_prefix': '',
                     'tags': [
                         {
                             'key': 'pool-type',
@@ -234,7 +234,7 @@ CLUSTER_CONFIGS = [
                     ],
                     'initialize_script': 'SGVsbG8gZnJvbSBub2RlIGluaXRpYWxpemF0aW9u',
                     'additional_container_storage_enabled': True,
-                    'name_prefix': 'edge',
+                    'name_prefix': '',
                     'tags': [
                         {
                             'key': 'pool-type',
