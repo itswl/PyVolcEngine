@@ -63,9 +63,9 @@ instance_configs = [
             "backup_time": "03:00-04:00",  # 备份时间段
             "backup_period": ["Monday", "Wednesday", "Friday"]  # 备份周期
         },
-        # EIP配置，选择一个使用
+        # EIP配置，不配置不创建，选择一个使用
         # 方式1: 字符串引用 (取消注释使用)
-        "eip": "her-dev-redis",  # 使用eip_config.py中配置的名称
+        # "eip": "her-dev-redis",  # 使用eip_config.py中配置的名称
         
         ## 方式2: 直接配置(取消注释使用)
         # "eip": {

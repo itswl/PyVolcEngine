@@ -139,8 +139,21 @@ instance_configs = [
             "full_backup_time": "18:00Z-19:00Z",  # 全量备份时间窗口，UTC时间
             "increment_backup_frequency": 2  # 增量备份频率，单位：小时，范围：1-24
         },
+        # EIP配置，不配置不创建，选择一个使用
         # 弹性公网IP配置
-        "eip": "her-dev-pg",  # EIP配置名称，用于关联已定义的EIP配置
+        # "eip": "her-dev-pg",  # 使用eip_config.py中配置的名称
+        
+        ## 方式2: 直接配置(取消注释使用)
+        # "eip": {
+        #     "name": "her-dev-pg-eip",  # EIP名称
+        #     "description": "EIP for Production PG instance",  # EIP描述
+        #     "billing_type": 3,  # 计费类型：3表示按量付费
+        #     "bandwidth": 10,  # 带宽大小，单位Mbps
+        #     "isp": "BGP",  # 线路类型：BGP
+        #     "project_name": "default",  # 项目名称
+        #     "period_unit": "Month",  # 购买时长单位
+        #     "period": 1  # 购买时长
+        # },
         # 实例标签配置
         "tags": [
             {

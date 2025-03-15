@@ -80,8 +80,22 @@ instance_configs = [
             "full_backup_period": "Monday,Thursday",
             "full_backup_time": "03:00-04:00",
             "increment_backup_frequency": "Every_6_Hours"
-        },
-        "eip": "her-dev-mongodb",
+        }, 
+        # EIP配置，不配置不创建，选择一个使用
+        # 方式1: 字符串引用 (取消注释使用)
+        # "eip": "her-dev-mongodb",  # 使用eip_config.py中配置的名称
+        
+        ## 方式2: 直接配置(取消注释使用)
+        # "eip": {
+        #     "name": "her-dev-mongodb-eip",  # EIP名称
+        #     "description": "EIP for Production mongodb instance",  # EIP描述
+        #     "billing_type": 3,  # 计费类型：3表示按量付费
+        #     "bandwidth": 10,  # 带宽大小，单位Mbps
+        #     "isp": "BGP",  # 线路类型：BGP
+        #     "project_name": "default",  # 项目名称
+        #     "period_unit": "Month",  # 购买时长单位
+        #     "period": 1  # 购买时长
+        # },
         "whitelists": ["wan_server", "wan_office", "lan"]
     }
 ]

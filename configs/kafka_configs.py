@@ -55,7 +55,21 @@ instance_configs = [
                 "host": "*"  # 主机，*表示所有
             }
         ],
-        "eip": "eve-cn-dev-kafka",  # 使用EIP配置名称，对应eip_config.py中的配置
+        # EIP配置，不配置不创建，选择一个使用
+        # 方式1: 字符串引用 (取消注释使用)
+        # "eip": "her-dev-kafka",  # 使用eip_config.py中配置的名称
+        
+        ## 方式2: 直接配置(取消注释使用)
+        # "eip": {
+        #     "name": "her-dev-kafka-eip",  # EIP名称
+        #     "description": "EIP for Production kafka instance",  # EIP描述
+        #     "billing_type": 3,  # 计费类型：3表示按量付费
+        #     "bandwidth": 10,  # 带宽大小，单位Mbps
+        #     "isp": "BGP",  # 线路类型：BGP
+        #     "project_name": "default",  # 项目名称
+        #     "period_unit": "Month",  # 购买时长单位
+        #     "period": 1  # 购买时长
+        # },
         "whitelists": ["default-whitelist", "office-whitelist", "vpc-whitelist"]  # 使用白名单配置名称列表，对应whitelist_config.py中的配置
     }
 ]

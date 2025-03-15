@@ -93,8 +93,15 @@ class PostgreSQLManager:
 
     def allocate_eip(self):
         from eip_manager import EIPManager
+        """申请EIP，如果配置中没有EIP配置则跳过"""
+        # 检查是否有EIP配置
+        if 'eip' not in self.current_config:
+            logger.info("未配置EIP，跳过EIP申请和公网访问创建")
+            return None, None, None
+
         eip_manager = EIPManager()
         return eip_manager.allocate_eip(self.current_config['eip'])
+
 
     def get_private_endpoint(self, instance_id):
         try:
@@ -469,14 +476,19 @@ def main():
         # 4. 申请EIP
         eip_id, eip_address, eip_name = instance_manager.allocate_eip()
         if not eip_id:
-            logger.error("申请EIP失败")
-            continue
+            logger.error("申请EIP失败，跳过创建公网访问端点")
+            address_domain = None
+            address_port = None
+        else:
+            # 5. 创建公网访问端点
+            logger.info("开始创建公网访问端点...")
+            address_domain, address_port = instance_manager.create_public_endpoint(instance_id, eip_id)
+            if not address_domain:
+                logger.error("创建公网访问端点失败")
+                continue
+            logger.info(f"成功创建公网访问端点: {address_domain}:{address_port}")
 
-        # 5. 创建公网访问端点
-        address_domain, address_port = instance_manager.create_public_endpoint(instance_id, eip_id)
-        if not address_domain:
-            logger.error("创建公网访问端点失败")
-            continue
+
         # 5.1.  获取内网访问端点
         private_address_domain, private_address_port = instance_manager.get_private_endpoint(instance_id)
         if not address_domain:
@@ -509,50 +521,50 @@ def main():
 
         logger.info(f"成功完成实例 {instance_config['instance']['name']} 的所有操作！")
         
-        # 将实例信息写入日志文件，使用追加模式
-        pg_instance_info_path = os.path.join(log_dir, 'pg_instance_info.md')
-        with open(pg_instance_info_path, 'a', encoding='utf-8') as f:
-            # 添加分隔符和时间戳
-            f.write(f"\n{'='*50}\n")
-            f.write(f"记录时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            f.write(f"# PostgreSQL实例创建记录\n\n")
-            f.write(f"## 实例信息\n")
-            f.write(f"- 实例ID: {instance_id}\n")
-            f.write(f"- 实例名称: {instance_config['instance']['name']}\n")
-            f.write(f"- 创建时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        # # 将实例信息写入日志文件，使用追加模式
+        # pg_instance_info_path = os.path.join(log_dir, 'pg_instance_info.md')
+        # with open(pg_instance_info_path, 'a', encoding='utf-8') as f:
+        #     # 添加分隔符和时间戳
+        #     f.write(f"\n{'='*50}\n")
+        #     f.write(f"记录时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        #     f.write(f"# PostgreSQL实例创建记录\n\n")
+        #     f.write(f"## 实例信息\n")
+        #     f.write(f"- 实例ID: {instance_id}\n")
+        #     f.write(f"- 实例名称: {instance_config['instance']['name']}\n")
+        #     f.write(f"- 创建时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             
-            f.write(f"## 网络配置\n")
-            f.write(f"- VPC ID: {vpc_id}\n")
-            f.write(f"- 子网 ID: {subnet_id}\n")
-            f.write(f"- EIP名称: {eip_name}\n")
-            f.write(f"- EIP地址: {eip_address}\n")
-            f.write(f"- EIP ID: {eip_id}\n")
-            f.write(f"- 内网访问域名: {private_address_domain}\n")
-            f.write(f"- 内网访问端口: {private_address_port}\n")
-            f.write(f"- 公网访问域名: {address_domain}\n")
-            f.write(f"- 公网访问端口: {address_port}\n")
+        #     f.write(f"## 网络配置\n")
+        #     f.write(f"- VPC ID: {vpc_id}\n")
+        #     f.write(f"- 子网 ID: {subnet_id}\n")
+        #     f.write(f"- EIP名称: {eip_name}\n")
+        #     f.write(f"- EIP地址: {eip_address}\n")
+        #     f.write(f"- EIP ID: {eip_id}\n")
+        #     f.write(f"- 内网访问域名: {private_address_domain}\n")
+        #     f.write(f"- 内网访问端口: {private_address_port}\n")
+        #     f.write(f"- 公网访问域名: {address_domain}\n")
+        #     f.write(f"- 公网访问端口: {address_port}\n")
 
 
-            f.write(f"## 数据库配置\n")
-            f.write(f"- 数据库列表: {', '.join([db['name'] for db in instance_config['databases']])}\n\n")
+        #     f.write(f"## 数据库配置\n")
+        #     f.write(f"- 数据库列表: {', '.join([db['name'] for db in instance_config['databases']])}\n\n")
             
-            f.write(f"## 账号信息\n")
-            f.write(f"- 超级用户名: {instance_config['accounts'][0]['username']}\n")
-            f.write(f"- 超级用户密码: {instance_config['accounts'][0]['password']}\n")
-            f.write(f"- 普通用户名: {instance_config['accounts'][1]['username']}\n")
-            f.write(f"- 普通用户密码: {instance_config['accounts'][1]['password']}\n\n")
+        #     f.write(f"## 账号信息\n")
+        #     f.write(f"- 超级用户名: {instance_config['accounts'][0]['username']}\n")
+        #     f.write(f"- 超级用户密码: {instance_config['accounts'][0]['password']}\n")
+        #     f.write(f"- 普通用户名: {instance_config['accounts'][1]['username']}\n")
+        #     f.write(f"- 普通用户密码: {instance_config['accounts'][1]['password']}\n\n")
             
-            f.write(f"## Schema配置\n")
-            for db in instance_config['databases']:
-                for schema in db['schemas']:
-                    f.write(f"- {db['name']}.{schema['name']}\n")
-            f.write("\n")
+        #     f.write(f"## Schema配置\n")
+        #     for db in instance_config['databases']:
+        #         for schema in db['schemas']:
+        #             f.write(f"- {db['name']}.{schema['name']}\n")
+        #     f.write("\n")
             
-            f.write(f"## 备份策略\n")
-            f.write(f"- 备份保留天数: {instance_config['backup']['retention_period']}天\n")
-            f.write(f"- 全量备份周期: {instance_config['backup']['full_backup_period']}\n")
-            f.write(f"- 全量备份时间: {instance_config['backup']['full_backup_time']}\n")
-            f.write(f"- 增量备份频率: {instance_config['backup']['increment_backup_frequency']}\n")
+        #     f.write(f"## 备份策略\n")
+        #     f.write(f"- 备份保留天数: {instance_config['backup']['retention_period']}天\n")
+        #     f.write(f"- 全量备份周期: {instance_config['backup']['full_backup_period']}\n")
+        #     f.write(f"- 全量备份时间: {instance_config['backup']['full_backup_time']}\n")
+        #     f.write(f"- 增量备份频率: {instance_config['backup']['increment_backup_frequency']}\n")
         
         logger.info(f"PostgreSQL实例ID: {instance_id}")
         logger.info(f"VPC ID: {vpc_id}")

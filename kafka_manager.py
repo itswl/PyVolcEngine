@@ -193,13 +193,16 @@ class KafkaManager:
             return False
 
     def allocate_eip(self):
-        """
-        为Kafka实例分配EIP
-        :return: (eip_id, eip_address, eip_name) 元组
-        """
         from eip_manager import EIPManager
+        """申请EIP，如果配置中没有EIP配置则跳过"""
+        # 检查是否有EIP配置
+        if 'eip' not in self.current_config:
+            logger.info("未配置EIP，跳过EIP申请和公网访问创建")
+            return None, None, None
+
         eip_manager = EIPManager()
         return eip_manager.allocate_eip(self.current_config['eip'])
+
 
     def create_public_endpoint(self, instance_id, eip_id):
         """
@@ -265,7 +268,7 @@ class KafkaManager:
             return None, None
 
 def main():
-    kafka_manager = KafkaManager()
+    instance_manager = KafkaManager()
     vpc_manager = VPCManager()
 
     # 遍历所有Kafka实例配置
@@ -316,40 +319,44 @@ def main():
             logger.info(f"子网 {subnet_config['name']} 创建成功，ID: {subnet_id}")
 
         # 2. 创建Kafka实例
-        instance_id = kafka_manager.create_instance(instance_config, vpc_id, subnet_id)
+        instance_id = instance_manager.create_instance(instance_config, vpc_id, subnet_id)
         if not instance_id:
             logger.error("创建Kafka实例失败")
             continue
 
         # 等待实例创建完成
         logger.info("等待实例创建完成...")
-        if not kafka_manager.wait_for_instance_ready(instance_id):
+        if not instance_manager.wait_for_instance_ready(instance_id):
             logger.error("实例创建超时或失败")
             continue
 
-        # 3. 申请EIP
-        # eip_id, eip_address, eip_name = kafka_manager.allocate_eip()
-        # if not eip_id:
-        #     logger.error("申请EIP失败")
-        #     continue
+        # 4. 申请EIP
+        eip_id, eip_address, eip_name = instance_manager.allocate_eip()
+        if not eip_id:
+            logger.error("申请EIP失败，跳过创建公网访问端点")
+            address_domain = None
+            address_port = None
+        else:
+            # 5. 创建公网访问端点
+            logger.info("开始创建公网访问端点...")
+            address_domain, address_port = instance_manager.create_public_endpoint(instance_id, eip_id)
+            if not address_domain:
+                logger.error("创建公网访问端点失败")
+                continue
+            logger.info(f"成功创建公网访问端点: {address_domain}:{address_port}")
 
-        # 4. 创建公网访问端点
-        # if not kafka_manager.create_public_endpoint(instance_id, eip_id):
-        #     logger.error("创建公网访问端点失败")
-        #     continue
-
-        private_address_domain, private_address_port = kafka_manager.get_private_endpoint(instance_id)
+        private_address_domain, private_address_port = instance_manager.get_private_endpoint(instance_id)
         if not private_address_domain:
             logger.error("获取内网访问端点失败")
             continue
         
         # 5. 创建白名单
-        if not kafka_manager.create_whitelist(instance_id):
+        if not instance_manager.create_whitelist(instance_id):
             logger.error("创建白名单失败")
             continue
 
         # 6. 创建ACL策略
-        if not kafka_manager.create_acl(instance_id):
+        if not instance_manager.create_acl(instance_id):
             logger.error("创建ACL策略失败")
             continue
 

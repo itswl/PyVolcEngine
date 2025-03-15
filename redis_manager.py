@@ -8,6 +8,7 @@ from configs.api_config import api_config
 from configs.redis_configs import instance_configs
 from vpc_manager import VPCManager
 from whitelist_manager import RedisWhitelistManager
+from eip_manager import EIPManager
 
 
 # 配置日志
@@ -152,7 +153,12 @@ class RedisManager:
 
 
     def allocate_eip(self):
-        from eip_manager import EIPManager
+        """申请EIP，如果配置中没有EIP配置则跳过"""
+        # 检查是否有EIP配置
+        if 'eip' not in self.current_config:
+            logger.info("未配置EIP，跳过EIP申请和公网访问创建")
+            return None, None, None
+
         eip_manager = EIPManager()
         return eip_manager.allocate_eip(self.current_config['eip'])
 
@@ -427,19 +433,23 @@ def main():
             continue
 
         # 4. 申请EIP
+        
         eip_id, eip_address, eip_name = instance_manager.allocate_eip()
         if not eip_id:
-            logger.error("申请EIP失败")
-            continue
-
-        # 5. 创建公网访问端点
-        address_domain, address_port = instance_manager.create_public_endpoint(instance_id, eip_id)
-        if not address_domain:
-            logger.error("创建公网访问端点失败")
-            continue
+            logger.error("申请EIP失败，跳过创建公网访问端点")
+            address_domain = None
+            address_port = None
+        else:
+            # 5. 创建公网访问端点
+            logger.info("开始创建公网访问端点...")
+            address_domain, address_port = instance_manager.create_public_endpoint(instance_id, eip_id)
+            if not address_domain:
+                logger.error("创建公网访问端点失败")
+                continue
+            logger.info(f"成功创建公网访问端点: {address_domain}:{address_port}")
         # 5.1 获取内网访问端点
         private_address_domain, private_address_port = instance_manager.get_private_endpoint(instance_id)
-        if not address_domain:
+        if not private_address_domain:
             logger.error("获取内网访问端点失败")
             continue
 
@@ -480,41 +490,41 @@ def main():
         logger.info(f"公网访问: {address_domain}:{address_port}")
         logger.info(f"内网访问: {private_address_domain}:{private_address_port}")
 
-        # 将实例信息写入Markdown文件
-        redis_instance_info_path = os.path.join(log_dir, 'redis_instance_info.md')
-        with open(redis_instance_info_path, 'a', encoding='utf-8') as f:
-            # 添加分隔符和时间戳
-            f.write(f"\n{'='*50}\n")
-            f.write(f"记录时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            f.write(f"# Redis实例创建记录\n\n")
-            f.write(f"## 实例信息\n")
-            f.write(f"- 实例ID: {instance_id}\n")
-            f.write(f"- 实例名称: {instance_config['instance']['name']}\n")
-            f.write(f"- 查询时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"- Redis版本: {instance_config['instance']['engine_version']}\n")
-            f.write(f"- 节点数量: {instance_config['instance']['node_number']}\n")
-            f.write(f"- 分片容量: {instance_config['instance']['shard_capacity']}MB\n\n")
+        # # 将实例信息写入Markdown文件
+        # redis_instance_info_path = os.path.join(log_dir, 'redis_instance_info.md')
+        # with open(redis_instance_info_path, 'a', encoding='utf-8') as f:
+        #     # 添加分隔符和时间戳
+        #     f.write(f"\n{'='*50}\n")
+        #     f.write(f"记录时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        #     f.write(f"# Redis实例创建记录\n\n")
+        #     f.write(f"## 实例信息\n")
+        #     f.write(f"- 实例ID: {instance_id}\n")
+        #     f.write(f"- 实例名称: {instance_config['instance']['name']}\n")
+        #     f.write(f"- 查询时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        #     f.write(f"- Redis版本: {instance_config['instance']['engine_version']}\n")
+        #     f.write(f"- 节点数量: {instance_config['instance']['node_number']}\n")
+        #     f.write(f"- 分片容量: {instance_config['instance']['shard_capacity']}MB\n\n")
 
-            f.write(f"## 网络配置\n")
-            f.write(f"- VPC ID: {vpc_id}\n")
-            f.write(f"- 子网 ID: {subnet_id}\n")
-            f.write(f"- EIP名称: {instance_config['eip']}\n")
-            f.write(f"- EIP地址: {eip_address}\n")
-            f.write(f"- 内网访问域名: {private_address_domain}\n")
-            f.write(f"- 内网访问端口: {private_address_port}\n")
-            f.write(f"- 公网访问域名: {address_domain}\n")
-            f.write(f"- 公网访问端口: {address_port}\n\n")
+        #     f.write(f"## 网络配置\n")
+        #     f.write(f"- VPC ID: {vpc_id}\n")
+        #     f.write(f"- 子网 ID: {subnet_id}\n")
+        #     f.write(f"- EIP名称: {instance_config['eip']}\n")
+        #     f.write(f"- EIP地址: {eip_address}\n")
+        #     f.write(f"- 内网访问域名: {private_address_domain}\n")
+        #     f.write(f"- 内网访问端口: {private_address_port}\n")
+        #     f.write(f"- 公网访问域名: {address_domain}\n")
+        #     f.write(f"- 公网访问端口: {address_port}\n\n")
 
-            f.write(f"## 账号信息\n")
-            for account in instance_config['accounts']:
-                f.write(f"- 账号类型: {account['account_type']}\n")
-                f.write(f"- 用户名: {account['username']}\n")
-                f.write(f"- 密码: {account['password']}\n\n")
+        #     f.write(f"## 账号信息\n")
+        #     for account in instance_config['accounts']:
+        #         f.write(f"- 账号类型: {account['account_type']}\n")
+        #         f.write(f"- 用户名: {account['username']}\n")
+        #         f.write(f"- 密码: {account['password']}\n\n")
 
-            f.write(f"## 备份策略\n")
-            f.write(f"- 备份保留天数: {instance_config['backup']['retention_period']}天\n")
-            f.write(f"- 备份时间段: {instance_config['backup']['backup_time']}\n")
-            f.write(f"- 备份周期: {', '.join(instance_config['backup']['backup_period'])}\n\n")
+        #     f.write(f"## 备份策略\n")
+        #     f.write(f"- 备份保留天数: {instance_config['backup']['retention_period']}天\n")
+        #     f.write(f"- 备份时间段: {instance_config['backup']['backup_time']}\n")
+        #     f.write(f"- 备份周期: {', '.join(instance_config['backup']['backup_period'])}\n\n")
 
 if __name__ == "__main__":
     main()

@@ -552,24 +552,24 @@ def main():
 
         logger.info(f"成功完成实例 {instance_config['instance']['name']} 的所有操作！")
         
-        # 将实例信息写入日志文件，使用追加模式
-        pg_instance_info_path = os.path.join(log_dir, 'escloud_instance_info.md')
-        with open(pg_instance_info_path, 'a', encoding='utf-8') as f:
-            # 添加分隔符和时间戳
-            f.write(f"\n{'='*50}\n")
-            f.write(f"记录时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            f.write(f"# PostgreSQL实例创建记录\n\n")
-            f.write(f"## 实例信息\n")
-            f.write(f"- 实例ID: {instance_id}\n")
-            f.write(f"- 实例名称: {instance_config['instance']['name']}\n")
-            f.write(f"- 创建时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        # # 将实例信息写入日志文件，使用追加模式
+        # pg_instance_info_path = os.path.join(log_dir, 'escloud_instance_info.md')
+        # with open(pg_instance_info_path, 'a', encoding='utf-8') as f:
+        #     # 添加分隔符和时间戳
+        #     f.write(f"\n{'='*50}\n")
+        #     f.write(f"记录时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        #     f.write(f"# es实例创建记录\n\n")
+        #     f.write(f"## 实例信息\n")
+        #     f.write(f"- 实例ID: {instance_id}\n")
+        #     f.write(f"- 实例名称: {instance_config['instance']['name']}\n")
+        #     f.write(f"- 创建时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             
-            f.write(f"## 网络配置\n")
-            f.write(f"- VPC ID: {vpc_id}\n")
-            f.write(f"- 子网 ID: {subnet_id}\n")
-            f.write(f"- ES内网访问信息: {es_private_endpoint}\n")
-            f.write(f"- Kibana内网访问信息: {kibana_private_domain}\n")
-            f.write(f"- Kibana内网访问信息: {kibana_public_domain}\n")
+        #     f.write(f"## 网络配置\n")
+        #     f.write(f"- VPC ID: {vpc_id}\n")
+        #     f.write(f"- 子网 ID: {subnet_id}\n")
+        #     f.write(f"- ES内网访问信息: {es_private_endpoint}\n")
+        #     f.write(f"- Kibana内网访问信息: {kibana_private_domain}\n")
+        #     f.write(f"- Kibana内网访问信息: {kibana_public_domain}\n")
 
 
 
