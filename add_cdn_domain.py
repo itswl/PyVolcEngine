@@ -62,6 +62,7 @@ def add_cdn_domain(
     """
     # 设置API参数
     api_params = {
+        ""
         "Domain": domain,
         "PrimaryOrigin": primary_origin,
         "ServiceType": service_type,
@@ -74,6 +75,7 @@ def add_cdn_domain(
     # 如果启用HTTPS，添加HTTPS配置
     if https:
         https_config = {"Switch": https}
+        https_config["HTTP2"] = True
         # 如果提供了证书信息，添加到HTTPS配置中
         if cert_id and cert_name:
             https_config["CertInfo"] = {
