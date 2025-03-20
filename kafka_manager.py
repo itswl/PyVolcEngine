@@ -349,7 +349,7 @@ def main():
         if not private_address_domain:
             logger.error("获取内网访问端点失败")
             continue
-        
+        logger.info(f"成功获取内网访问端点: {private_address_domain}:{private_address_port}")
         # 5. 创建白名单
         if not instance_manager.create_whitelist(instance_id):
             logger.error("创建白名单失败")

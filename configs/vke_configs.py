@@ -24,7 +24,7 @@ INSTANCE_TYPES = {
 # VKE集群配置列表
 CLUSTER_CONFIGS = [
     {
-        'name': 'ns-hs-sh-dev-k8s',
+        'name': 'ns-hs-sh-prod-k8s',
         'description': '',
         'kubernetes_version': '1.28',
         'vpc_id': VPC_ID,
@@ -55,7 +55,7 @@ CLUSTER_CONFIGS = [
         
         # Service网络配置
         'services_config': {
-            'service_cidrsv4': ['172.28.0.0/17']
+            'service_cidrsv4': ['172.29.0.0/17']
         },
         
         # Kubernetes配置

@@ -4,7 +4,7 @@
 instance_configs = [
     {
         "instance": {
-            "name": "her-dev-mongo",
+            "name": "eve-cn-prod-mongo",
             "engine_version": "MongoDB_6_0",
             "db_engine": "MongoDB",
             "storage_type": "LocalSSD",
@@ -15,9 +15,9 @@ instance_configs = [
             "period_unit": "Month",
             "project_name": "default",
             "mongos_node_number": 2,  # 参考现有实例配置
-            "mongos_node_spec": "mongo.mongos.1c2g",  # 参考现有实例配置
+            "mongos_node_spec": "mongo.mongos.2c4g",  # 参考现有实例配置
             "node_number": 3,  # 每个分片3个节点（1主2从，其中1个Hidden）
-            "node_spec": "mongo.shard.1c2g",  # 参考现有实例配置
+            "node_spec": "mongo.shard.2c4g",  # 参考现有实例配置
             "shard_number": 2,  # 参考现有实例配置的2个分片
             "super_account_name": "root",
             "super_account_password": "ns2024Xqrif848",
@@ -83,19 +83,19 @@ instance_configs = [
         }, 
         # EIP配置，不配置不创建，选择一个使用
         # 方式1: 字符串引用 (取消注释使用)
-        # "eip": "her-dev-mongodb",  # 使用eip_config.py中配置的名称
+        # "eip": "eve-cn-prod-mongo",  # 使用eip_config.py中配置的名称
         
         ## 方式2: 直接配置(取消注释使用)
-        # "eip": {
-        #     "name": "her-dev-mongodb-eip",  # EIP名称
-        #     "description": "EIP for Production mongodb instance",  # EIP描述
-        #     "billing_type": 3,  # 计费类型：3表示按量付费
-        #     "bandwidth": 10,  # 带宽大小，单位Mbps
-        #     "isp": "BGP",  # 线路类型：BGP
-        #     "project_name": "default",  # 项目名称
-        #     "period_unit": "Month",  # 购买时长单位
-        #     "period": 1  # 购买时长
-        # },
+        "eip": {
+            "name": "eve-cn-prod-mongo",  # EIP名称
+            "description": "EIP for Production mongodb instance",  # EIP描述
+            "billing_type": 3,  # 计费类型：3表示按量付费
+            "bandwidth": 50,  # 带宽大小，单位Mbps
+            "isp": "BGP",  # 线路类型：BGP
+            "project_name": "default",  # 项目名称
+            "period_unit": "Month",  # 购买时长单位
+            "period": 1  # 购买时长
+        },
         "whitelists": ["wan_server", "wan_office", "lan"]
     }
 ]
