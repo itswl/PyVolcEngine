@@ -4,7 +4,7 @@
 instance_configs = [
     {
         "instance": {
-            "name": "her-dev-es",
+            "name": "eve-cn-prod-es",
             "version": "V7_10",
             "zone_id": "cn-shanghai-a,cn-shanghai-b",
             "instance_type": "es.standard",

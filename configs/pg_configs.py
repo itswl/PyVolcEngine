@@ -22,11 +22,11 @@ instance_configs = [
     {
         # 测试环境实例配置
         "instance": {
-            "name": "her-dev-pg",  # 实例名称，在账号下必须唯一
+            "name": "eve-cn-prod-pg",  # 实例名称，在账号下必须唯一
             "engine_version": "PostgreSQL_14",  # 数据库版本，支持PostgreSQL_11/12/13
             "storage_type": "LocalSSD",  # 存储类型，目前仅支持LocalSSD（本地SSD盘）
             "storage_space": 100,  # 存储空间大小，单位GB，范围：20-3000
-            "node_spec": "rds.postgres.1c2g",  # 实例规格，格式：rds.postgres.[CPU核数]c[内存大小]g
+            "node_spec": "rds.postgres.4c8g",  # 实例规格，格式：rds.postgres.[CPU核数]c[内存大小]g
             "zone_id": "cn-shanghai-a",  # 可用区ID，例如：cn-shanghai-a
             'vpc_id': 'vpc-22j75iztkwo3k7r2qr1czeq8b',
             "subnet_id": 'subnet-3qd8s8xald8n47prml147n61j',
@@ -34,12 +34,12 @@ instance_configs = [
             "node_info": [
                 {
                     "NodeType": "Primary",
-                    "NodeSpec": "rds.postgres.1c2g",  # 与node_spec保持一致
+                    "NodeSpec": "rds.postgres.4c8g",  # 与node_spec保持一致
                     "ZoneId": "cn-shanghai-a"  # 与zone_id保持一致
                 },
                 {
                     "NodeType": "Secondary",
-                    "NodeSpec": "rds.postgres.1c2g",  # 与node_spec保持一致
+                    "NodeSpec": "rds.postgres.4c8g",  # 与node_spec保持一致
                     "ZoneId": "cn-shanghai-b"  # 与zone_id保持一致
                 }
             ],
@@ -141,28 +141,28 @@ instance_configs = [
         },
         # EIP配置，不配置不创建，选择一个使用
         # 弹性公网IP配置
-        # "eip": "her-dev-pg",  # 使用eip_config.py中配置的名称
+        # "eip": "eve-cn-prod-pg",  # 使用eip_config.py中配置的名称
         
         ## 方式2: 直接配置(取消注释使用)
-        # "eip": {
-        #     "name": "her-dev-pg-eip",  # EIP名称
-        #     "description": "EIP for Production PG instance",  # EIP描述
-        #     "billing_type": 3,  # 计费类型：3表示按量付费
-        #     "bandwidth": 10,  # 带宽大小，单位Mbps
-        #     "isp": "BGP",  # 线路类型：BGP
-        #     "project_name": "default",  # 项目名称
-        #     "period_unit": "Month",  # 购买时长单位
-        #     "period": 1  # 购买时长
-        # },
-        # 实例标签配置
+        "eip": {
+            "name": "eve-cn-prod-pg",  # EIP名称
+            "description": "EIP for Production PG instance",  # EIP描述
+            "billing_type": 3,  # 计费类型：3表示按量付费
+            "bandwidth": 10,  # 带宽大小，单位Mbps
+            "isp": "BGP",  # 线路类型：BGP
+            "project_name": "default",  # 项目名称
+            "period_unit": "Month",  # 购买时长单位
+            "period": 1  # 购买时长
+        },
+        #实例标签配置
         "tags": [
             {
                 "key": "environment",  # 环境标签
-                "value": "dev"
+                "value": "prod"
             },
             {
                 "key": "project",  # 项目标签
-                "value": "dev"
+                "value": "prod"
             }
         ]
     },

@@ -275,7 +275,7 @@ class IAMManager:
                 offset=offset
             )
             list_users_response = self.client_api.list_users(list_users_request)
-            
+
             logger.info(f"成功获取用户列表，共 {len(list_users_response.user_metadata)} 个用户")
             return list_users_response.user_metadata
         except Exception as e:
@@ -364,21 +364,44 @@ class IAMManager:
             if user_info["auth_type"] in ["access_key", "both"]:
                 self._create_access_key(user_info)
 
+    def list_user_groups(self, user_name: str) -> List:
+        """获取指定用户所属的用户组
+        
+        Args:
+            user_name: 用户名
+            
+        Returns:
+            List: 用户所属的用户组列表
+        """
+        try:
+            # 使用正确的API请求类型
+            list_groups_request = self.api.ListGroupsForUserRequest(
+                user_name=user_name
+            )
+            response = self.client_api.list_groups_for_user(list_groups_request)
+            
+            # logger.info(f"成功获取用户 {user_name} 所属的用户组列表")
+            return response.user_groups
+        except Exception as e:
+            logger.error(f"获取用户所属用户组列表失败: {user_name}, 错误: {str(e)}")
+            raise
+
 def main():
     """主函数
     
-    支持三种调用方式：
+    支持四种调用方式：
     1. 完整流程：创建用户组、用户，设置权限等
     2. 列出用户：显示所有IAM用户信息
     3. 删除用户：删除指定的用户
+    4. 查看用户组：查看指定用户所属的用户组
     """
     import argparse
     
     # 创建命令行参数解析器
     parser = argparse.ArgumentParser(description='火山引擎IAM用户管理工具')
-    parser.add_argument('mode', choices=['full', 'list', 'delete'],
-                        help='运行模式：full-完整流程，list-列出用户，delete-删除用户')
-    parser.add_argument('--users', nargs='+', help='要删除的用户名列表（仅在delete模式下需要）')
+    parser.add_argument('mode', choices=['full', 'list', 'delete', 'groups'],
+                        help='运行模式：full-完整流程，list-列出用户，delete-删除用户，groups-查看用户所属组')
+    parser.add_argument('--users', nargs='+', help='要删除的用户名列表（仅在delete模式下需要）或查看组的用户名（仅在groups模式下需要）')
     
     args = parser.parse_args()
     
@@ -414,17 +437,20 @@ def main():
             
             # 列出所有用户
             users = iam_manager.list_users()
-            logger.info("当前IAM用户列表:")
-            for user in users:
-                logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}")
-                
-        elif args.mode == 'list':
-            # 列出用户模式
-            users = iam_manager.list_users()
             if users:
                 logger.info("当前IAM用户列表:")
                 for user in users:
-                    logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}")
+                    # 获取该用户所属的用户组
+                    try:
+                        groups = iam_manager.list_user_groups(user.user_name)
+                        if groups:
+                            # print(groups)
+                            group_info = ", ".join([f"{group.user_group_name}" for group in groups])
+                            logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}, 主账号id: {user.account_id}, 所属用户组: {group_info}")
+                        else:
+                            logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}, 主账号id: {user.account_id}, 所属用户组: 无")
+                    except Exception as e:
+                        logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}, 主账号id: {user.account_id}, 所属用户组: 获取失败({str(e)})")
             else:
                 logger.info("当前没有IAM用户")
                 
@@ -457,6 +483,43 @@ def main():
             
             # 显示删除结果统计
             logger.info(f"\n删除操作完成：成功 {success_count} 个，失败 {fail_count} 个")
+
+        elif args.mode == 'groups':
+            # 查看用户所属组模式
+            if not args.users:
+                logger.error("groups模式下必须指定要查看的用户名列表 (--users)")
+                return
+            
+            for user_name in args.users:
+                try:
+                    groups = iam_manager.list_user_groups(user_name)
+                    if groups:
+                        logger.info(f"\n用户 {user_name} 所属的用户组:")
+                        for group in groups:
+                            logger.info(f"- 用户组名称: {group.user_group_name}, 显示名称: {group.display_name}")
+                    else:
+                        logger.info(f"\n用户 {user_name} 不属于任何用户组")
+                except Exception as e:
+                    logger.error(f"查看用户 {user_name} 所属组失败: {str(e)}")
+
+        elif args.mode == 'list':
+            # 列出用户模式
+            users = iam_manager.list_users()
+            if users:
+                logger.info("当前IAM用户列表:")
+                for user in users:
+                    # 获取该用户所属的用户组
+                    try:
+                        groups = iam_manager.list_user_groups(user.user_name)
+                        if groups:
+                            group_info = ", ".join([f"{group.display_name}" for group in groups])
+                            logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}, 所属用户组: {group_info}")
+                        else:
+                            logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}, 所属用户组: 无")
+                    except Exception as e:
+                        logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}, 所属用户组: 获取失败({str(e)})")
+            else:
+                logger.info("当前没有IAM用户")
 
     except Exception as e:
         logger.error(f"程序执行失败: {str(e)}")

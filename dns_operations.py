@@ -426,6 +426,15 @@ def create_records_from_file(file_path: Union[str, Path], zid: int,
                 logger.warning("获取现有记录失败，将跳过重复检查")
                 skip_check = True
         
+        # 辅助函数：安全转换为整数
+        def safe_int_convert(value):
+            if value is None or value.strip() == '' or value.strip() == 'None':
+                return None
+            try:
+                return int(value)
+            except ValueError:
+                return None
+        
         for i, line in enumerate(lines[2:], start=2):
             if not line.strip():
                 continue
@@ -457,10 +466,10 @@ def create_records_from_file(file_path: Union[str, Path], zid: int,
                 sk=sk,
                 region=region,
                 skip_check=skip_check,
-                ttl=int(record.get('TTL', 0)) if record.get('TTL') else None,
-                priority=int(record.get('Priority', 0)) if record.get('Priority') else None,
-                weight=int(record.get('Weight', 0)) if record.get('Weight') else None,
-                port=int(record.get('Port', 0)) if record.get('Port') else None
+                ttl=safe_int_convert(record.get('TTL')),
+                priority=safe_int_convert(record.get('Priority')),
+                weight=safe_int_convert(record.get('Weight')),
+                port=safe_int_convert(record.get('Port'))
             )
             
             if response.success:
