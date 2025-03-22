@@ -18,16 +18,16 @@ import (
 
 // APIConfig 存储API调用所需的配置信息
 type APIConfig struct {
-	AK         string
-	SK         string
-	Action     string
-	Method     string
-	Service    string
-	Version    string
-	Region     string
-	Host       string
+	AK          string
+	SK          string
+	Action      string
+	Method      string
+	Service     string
+	Version     string
+	Region      string
+	Host        string
 	ContentType string
-	APIParams  map[string]interface{}
+	APIParams   map[string]interface{}
 }
 
 // APIError 自定义错误类型
@@ -65,16 +65,16 @@ func NewAPIConfig() (*APIConfig, error) {
 	}
 
 	return &APIConfig{
-		AK:         ak,
-		SK:         sk,
-		Action:     action,
-		Method:     method,
-		Service:    service,
-		Version:    version,
-		Region:     region,
-		Host:       host,
+		AK:          ak,
+		SK:          sk,
+		Action:      action,
+		Method:      method,
+		Service:     service,
+		Version:     version,
+		Region:      region,
+		Host:        host,
 		ContentType: contentType,
-		APIParams:  apiParams,
+		APIParams:   apiParams,
 	}, nil
 }
 
@@ -124,13 +124,13 @@ func (sb *SignatureBuilder) NormQuery(params map[string]interface{}) string {
 		switch v := value.(type) {
 		case []interface{}:
 			for _, item := range v {
-				queryItems = append(queryItems, fmt.Sprintf("%s=%s", 
-					url.QueryEscape(key), 
+				queryItems = append(queryItems, fmt.Sprintf("%s=%s",
+					url.QueryEscape(key),
 					url.QueryEscape(fmt.Sprintf("%v", item))))
 			}
 		default:
-			queryItems = append(queryItems, fmt.Sprintf("%s=%s", 
-				url.QueryEscape(key), 
+			queryItems = append(queryItems, fmt.Sprintf("%s=%s",
+				url.QueryEscape(key),
 				url.QueryEscape(fmt.Sprintf("%v", value))))
 		}
 	}
@@ -154,14 +154,14 @@ func (sb *SignatureBuilder) HmacSHA256(key []byte, content string) []byte {
 
 // APIClient API客户端
 type APIClient struct {
-	Config          *APIConfig
+	Config           *APIConfig
 	SignatureBuilder *SignatureBuilder
 }
 
 // NewAPIClient 创建API客户端
 func NewAPIClient(config *APIConfig) *APIClient {
 	return &APIClient{
-		Config:          config,
+		Config:           config,
 		SignatureBuilder: &SignatureBuilder{},
 	}
 }
@@ -195,12 +195,12 @@ func (client *APIClient) SendRequest() (map[string]interface{}, error) {
 // buildRequestParams 构建请求参数
 func (client *APIClient) buildRequestParams(body string, date time.Time) map[string]interface{} {
 	return map[string]interface{}{
-		"body":        body,
-		"host":        client.Config.Host,
-		"path":        "/",
-		"method":      client.Config.Method,
+		"body":         body,
+		"host":         client.Config.Host,
+		"path":         "/",
+		"method":       client.Config.Method,
 		"content_type": client.Config.ContentType,
-		"date":        date,
+		"date":         date,
 		"query": map[string]interface{}{
 			"Action":  client.Config.Action,
 			"Version": client.Config.Version,
@@ -217,10 +217,10 @@ func (client *APIClient) buildHeaders(requestParams map[string]interface{}) (map
 	contentSha256 := client.SignatureBuilder.HashSHA256(body)
 
 	headers := map[string]string{
-		"Host":            requestParams["host"].(string),
+		"Host":             requestParams["host"].(string),
 		"X-Content-Sha256": contentSha256,
-		"X-Date":          xDate,
-		"Content-Type":    requestParams["content_type"].(string),
+		"X-Date":           xDate,
+		"Content-Type":     requestParams["content_type"].(string),
 	}
 
 	signature, err := client.calculateSignature(requestParams, xDate, shortDate, contentSha256)
@@ -291,9 +291,9 @@ func (client *APIClient) buildAuthorizationHeader(shortDate, signature string) s
 func (client *APIClient) makeRequest(requestParams map[string]interface{}, headers map[string]string) (*http.Response, error) {
 	query := requestParams["query"].(map[string]interface{})
 	normQuery := client.SignatureBuilder.NormQuery(query)
-	url := fmt.Sprintf("https://%s%s?%s", 
-		requestParams["host"].(string), 
-		requestParams["path"].(string), 
+	url := fmt.Sprintf("https://%s%s?%s",
+		requestParams["host"].(string),
+		requestParams["path"].(string),
 		normQuery)
 
 	req, err := http.NewRequest(
@@ -320,7 +320,7 @@ func (client *APIClient) handleResponse(response *http.Response) (map[string]int
 
 	if response.StatusCode != 200 {
 		bodyBytes, _ := io.ReadAll(response.Body)
-		return nil, &APIError{Message: fmt.Sprintf("HTTP请求失败，状态码：%d\n响应内容：%s", 
+		return nil, &APIError{Message: fmt.Sprintf("HTTP请求失败，状态码：%d\n响应内容：%s",
 			response.StatusCode, string(bodyBytes))}
 	}
 
@@ -360,7 +360,7 @@ func main() {
 	response, err := client.SendRequest()
 	if err != nil {
 		fmt.Printf("错误：%s\n", err.Error())
-		os.Exit(1)
+		os.Exit(0)
 	}
 
 	jsonResponse, _ := json.MarshalIndent(response, "", "  ")

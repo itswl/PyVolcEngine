@@ -403,6 +403,37 @@ class PostgreSQLManager:
             logger.error(f"修改备份策略时发生异常: {e}")
             return False
 
+    def modify_parameters(self, instance_id, parameters):
+        """修改数据库参数
+        :param instance_id: 实例ID
+        :param parameters: 参数列表，格式为[{"name": "参数名", "value": "参数值"}]
+        :return: bool 是否成功
+        """
+        try:
+            # 构建参数列表
+            req_parameters = []
+            for param in parameters:
+                param_input = self.api.ParameterForModifyDBInstanceParametersInput(
+                    name=param['name'],
+                    value=param['value']
+                )
+                req_parameters.append(param_input)
+
+            # 创建修改参数请求
+            request = self.api.ModifyDBInstanceParametersRequest(
+                instance_id=instance_id,
+                parameters=req_parameters
+            )
+
+            # 执行修改参数请求
+            self.client_api.modify_db_instance_parameters(request)
+            logger.info(f"成功修改实例 {instance_id} 的参数")
+            return True
+
+        except ApiException as e:
+            logger.error(f"修改实例 {instance_id} 参数时发生异常: {e}")
+            return False
+
 def main():
     instance_manager = PostgreSQLManager()
     vpc_manager = VPCManager()
@@ -520,8 +551,13 @@ def main():
             logger.error("修改备份策略失败")
             continue
 
+        # 11. 修改参数
+        if not instance_manager.modify_parameters(instance_id, instance_config['parameters']):
+            logger.error("修改参数失败")
+            continue
+
         logger.info(f"成功完成实例 {instance_config['instance']['name']} 的所有操作！")
-        
+            
         # # 将实例信息写入日志文件，使用追加模式
         # pg_instance_info_path = os.path.join(log_dir, 'pg_instance_info.md')
         # with open(pg_instance_info_path, 'a', encoding='utf-8') as f:

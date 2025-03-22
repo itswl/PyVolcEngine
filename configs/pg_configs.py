@@ -154,6 +154,9 @@ instance_configs = [
             "period_unit": "Month",  # 购买时长单位
             "period": 1  # 购买时长
         },
+        'parameters': [
+                {'name': 'wal_level', 'value': 'logical'},
+        ],
         #实例标签配置
         "tags": [
             {
