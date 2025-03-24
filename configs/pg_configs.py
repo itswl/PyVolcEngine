@@ -88,7 +88,7 @@ instance_configs = [
         "databases": [
             {  # 测试数据库配置
                 "name": "testdb",  # 数据库名称
-                "owner": " ",  # 数据库所有者
+                "owner": "root",  # 数据库所有者
                 "schemas": [  # Schema配置列表
                     {
                         "name": "test_schema_1",  # Schema名称
