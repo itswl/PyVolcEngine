@@ -13,7 +13,7 @@ clb_configs = [
         'load_balancer_spec': 'medium_1',
         'description': '',
         'eip': {
-            'bandwidth': 50,
+            'bandwidth': 100,
             'eip_billing_type': 3 # 按量付费，实际流量
         }
     },    
@@ -24,7 +24,7 @@ clb_configs = [
         'load_balancer_spec': 'small_2',
         'description': '',
         'eip': {
-            'bandwidth': 50,
+            'bandwidth': 100,
             'eip_billing_type': 3 # 按量付费，实际流量
         }
     }
