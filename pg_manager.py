@@ -201,6 +201,8 @@ class PostgreSQLManager:
         :return: bool 是否成功
         """
         start_time = time.time()
+        print(f"开始等待实例 {instance_id} 准备就绪")
+        time.sleep(10)
         while True:
             try:
                 request = self.api.DescribeDBInstancesRequest()
@@ -536,15 +538,15 @@ def main():
             logger.error("创建账号失败")
             continue
 
-        # 8. 创建数据库
-        if not instance_manager.create_database(instance_id):
-            logger.error("创建数据库失败")
-            continue
+        # # 8. 创建数据库
+        # if not instance_manager.create_database(instance_id):
+        #     logger.error("创建数据库失败")
+        #     continue
 
-        # 9. 创建Schema
-        if not instance_manager.create_schema(instance_id):
-            logger.error("创建Schema失败")
-            continue
+        # # 9. 创建Schema
+        # if not instance_manager.create_schema(instance_id):
+        #     logger.error("创建Schema失败")
+        #     continue
 
         # 10. 修改备份策略
         if not instance_manager.modify_backup_policy(instance_id):

@@ -330,20 +330,20 @@ def main():
             logger.error("实例创建超时或失败")
             continue
 
-        # 4. 申请EIP
-        eip_id, eip_address, eip_name = instance_manager.allocate_eip()
-        if not eip_id:
-            logger.error("申请EIP失败，跳过创建公网访问端点")
-            address_domain = None
-            address_port = None
-        else:
-            # 5. 创建公网访问端点
-            logger.info("开始创建公网访问端点...")
-            address_domain, address_port = instance_manager.create_public_endpoint(instance_id, eip_id)
-            if not address_domain:
-                logger.error("创建公网访问端点失败")
-                continue
-            logger.info(f"成功创建公网访问端点: {address_domain}:{address_port}")
+        # # 4. 申请EIP
+        # eip_id, eip_address, eip_name = instance_manager.allocate_eip()
+        # if not eip_id:
+        #     logger.error("申请EIP失败，跳过创建公网访问端点")
+        #     address_domain = None
+        #     address_port = None
+        # else:
+        #     # 5. 创建公网访问端点
+        #     logger.info("开始创建公网访问端点...")
+        #     address_domain, address_port = instance_manager.create_public_endpoint(instance_id, eip_id)
+        #     if not address_domain:
+        #         logger.error("创建公网访问端点失败")
+        #         continue
+        #     logger.info(f"成功创建公网访问端点: {address_domain}:{address_port}")
 
         private_address_domain, private_address_port = instance_manager.get_private_endpoint(instance_id)
         if not private_address_domain:

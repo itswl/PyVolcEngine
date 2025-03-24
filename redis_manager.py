@@ -54,6 +54,7 @@ class RedisManager:
         #    检查是否已存在同名实例
             list_request = self.api.DescribeDBInstancesRequest()
             list_response = self.client_api.describe_db_instances(list_request)
+            # print(list_response)
             if list_response.instances:
                 for instance in list_response.instances:
                     if instance.instance_name == instance_config['instance']['name']:
@@ -92,7 +93,7 @@ class RedisManager:
                 password=instance_config['instance']['password'],
                 sharded_cluster=instance_config['instance']['sharded_cluster']
             )
-            
+            print(request)
             response = self.client_api.create_db_instance(request)
             logger.info(f"Redis实例创建成功: {response}")
             return response.instance_id

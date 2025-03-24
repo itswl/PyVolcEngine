@@ -134,7 +134,7 @@ instance_configs = [
         ],
         # 备份策略配置
         "backup": {
-            "retention_period": 7,  # 备份保留天数，范围：7-730天
+            "retention_period": 30,  # 备份保留天数，范围：7-730天
             "full_backup_period": "Monday,Wednesday,Friday,Sunday",  # 全量备份周期，多个值用逗号分隔
             "full_backup_time": "18:00Z-19:00Z",  # 全量备份时间窗口，UTC时间
             "increment_backup_frequency": 2  # 增量备份频率，单位：小时，范围：1-24

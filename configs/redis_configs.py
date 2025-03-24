@@ -6,7 +6,7 @@ instance_configs = [
             "name": "eve-cn-prod-redis",
             "engine_version": "7.0",  # Redis版本
             "node_number": 2,  # 节点数量
-            "shard_capacity": '8g',  # 分片容量，单位MB
+            "shard_capacity": 8192,  # 分片容量，单位MB
             "sharded_cluster": 0,  # 是否为分片集群
             "port": 6379,  # Redis端口
             "password": "ns2024Xqrif848",  # Redis密码

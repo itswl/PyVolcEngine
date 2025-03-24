@@ -509,17 +509,20 @@ if __name__ == "__main__":
     if response.success and response.data and "Result" in response.data and "Zones" in response.data["Result"]:
         for zone in response.data["Result"]["Zones"]:
             print('-' * 100)
-            print(f"ZID: {zone.get('ZID', 'N/A')}")
-            print(f"ZoneName: {zone.get('ZoneName', 'N/A')}")
+            ZID = zone.get('ZID', 'N/A')
+            ZoneName = zone.get('ZoneName', 'N/A')
+            print(f"ZID: {ZID}")
+            print(f"ZoneName: {ZoneName}")
     else:
         print(f"获取域名ID列表失败: {response.message}")
         
     # 设置命令行参数解析器
     print('\n')
     print('示例命令：')
-    print('python dns_operations.py --zid ZID --action export --output dns_records.txt # 导出到文件')
-    print('python dns_operations.py --zid ZID --action create --host test.com --type CNAME --value CNAME.test.com # 创建单条CNAME记录')
-    print('python dns_operations.py --zid ZID --action import --input dns_records.txt # 从文件导入')
+    print(f'ZoneName 为 {ZoneName} 的域名ZID为 {ZID}')
+    print(f'python dns_operations.py --zid {ZID} --action export --output dns_records.txt # 导出到文件')
+    print(f'python dns_operations.py --zid {ZID} --action create --host test.com --type CNAME --value CNAME.test.com # 创建单条CNAME记录')
+    print(f'python dns_operations.py --zid {ZID} --action import --input dns_records.txt # 从文件导入')
     print('\n')
     parser = argparse.ArgumentParser(description='DNS操作工具')
     parser.add_argument('--action', required=True, 
