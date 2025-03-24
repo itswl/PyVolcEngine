@@ -53,7 +53,7 @@ def get_certificate() -> Tuple[Optional[str], Optional[str]]:
         os.environ.setdefault('volcSK', api_config['sk'])
         # 使用正确的Source参数
         os.environ['API_PARAMS'] = '{"Source": "volc_cert_center"}'
-        print("API参数:", os.environ['API_PARAMS'])
+        # print("API参数:", os.environ['API_PARAMS'])
         
         # 确保api_config中有AK和SK
         if not os.environ.get('volcAK') or not os.environ.get('volcSK'):
@@ -68,7 +68,7 @@ def get_certificate() -> Tuple[Optional[str], Optional[str]]:
         # 发送请求
         try:
             response = client.send_request()
-            print('证书API响应:', response)
+            # print('证书API响应:', response)
             
             # 检查是否有证书
             if 'Result' in response and 'CertInfo' in response['Result'] and response['Result']['CertInfo']:
@@ -228,7 +228,7 @@ def add_cdn_domain(
     os.environ['API_PARAMS'] = json.dumps(api_params)
     os.environ['Action'] = 'AddCdnDomain'
     
-    print(os.environ['API_PARAMS'])
+    # print(os.environ['API_PARAMS'])
     try:
         # 创建CDN配置和API客户端
         config = CDNConfig()
@@ -310,8 +310,9 @@ def main():
         # 提取域名前缀，动态识别并提取
         import re
         # 提取域名的第一部分（主机名）
-        host_prefix = args.domain.split('.')[0]
-        print(f"python dns_operations.py --zid ZID --action create --host {host_prefix} --type CNAME --value {result['Cname']}")
+        domain_name = '.'.join(args.domain.split('.')[-2:])
+        host_prefix = args.domain.removesuffix('.' + domain_name)
+        print(f"python dns_operations.py --domain {domain_name} --action create --host {host_prefix} --type CNAME --value {result['Cname']}")
 
 
 if __name__ == '__main__':

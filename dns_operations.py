@@ -204,6 +204,52 @@ def list_zones(ak: Optional[str] = None, sk: Optional[str] = None,
         logger.error(f"获取域名ID列表失败: {str(e)}")
         return OperationResult(False, str(e))
 
+def get_zid_by_domain(domain: str, ak: Optional[str] = None, sk: Optional[str] = None,
+                      region: str = "cn-beijing") -> OperationResult:
+    """根据域名获取域名ID（ZID）
+    
+    Args:
+        domain: 域名，例如example.com
+        ak: 访问密钥ID，如果不提供则从api_config获取
+        sk: 访问密钥，如果不提供则从api_config获取
+        region: 区域，默认为cn-beijing
+        
+    Returns:
+        OperationResult: 操作结果，成功时data字段为域名ID
+    """
+    try:
+        # 获取所有域名列表
+        result = list_zones(ak, sk, region)
+        if not result.success:
+            return result
+            
+        response = result.data
+        if "Result" not in response or "Zones" not in response["Result"]:
+            return OperationResult(False, "无法获取域名列表", None)
+            
+        # 标准化输入域名（去除前缀www.和结尾的点）
+        normalized_domain = domain.lower()
+        if normalized_domain.startswith('www.'):
+            normalized_domain = normalized_domain[4:]
+        if normalized_domain.endswith('.'):
+            normalized_domain = normalized_domain[:-1]
+            
+        # 查找匹配的域名
+        for zone in response["Result"]["Zones"]:
+            zone_name = zone.get('ZoneName', '').lower()
+            if zone_name.endswith('.'):
+                zone_name = zone_name[:-1]
+                
+            if zone_name == normalized_domain:
+                zid = zone.get('ZID')
+                if zid:
+                    return OperationResult(True, f"成功找到域名 {domain} 的ZID", zid)
+                    
+        return OperationResult(False, f"未找到域名 {domain} 的ZID", None)
+    except Exception as e:
+        logger.error(f"根据域名获取ZID时出现异常: {str(e)}")
+        return OperationResult(False, str(e), None)
+
 def list_records(zid: int, page_number: int = 1, page_size: int = 500, 
                 ak: Optional[str] = None, sk: Optional[str] = None, 
                 region: str = "cn-beijing") -> OperationResult:
@@ -513,6 +559,17 @@ if __name__ == "__main__":
             ZoneName = zone.get('ZoneName', 'N/A')
             print(f"ZID: {ZID}")
             print(f"ZoneName: {ZoneName}")
+            
+            # 示例2：通过域名获取ZID（演示新功能）
+            if ZoneName != 'N/A':
+                print("\n测试根据域名获取ZID:")
+                test_result = get_zid_by_domain(ZoneName)
+                if test_result.success:
+                    print(f"  域名: {ZoneName}")
+                    print(f"  ZID: {test_result.data}")
+                    print(f"  是否匹配: {'√' if str(test_result.data) == str(ZID) else '×'}")
+                else:
+                    print(f"  获取ZID失败: {test_result.message}")
     else:
         print(f"获取域名ID列表失败: {response.message}")
         
@@ -520,15 +577,24 @@ if __name__ == "__main__":
     print('\n')
     print('示例命令：')
     print(f'ZoneName 为 {ZoneName} 的域名ZID为 {ZID}')
-    print(f'python dns_operations.py --zid {ZID} --action export --output dns_records.txt # 导出到文件')
-    print(f'python dns_operations.py --zid {ZID} --action create --host test.com --type CNAME --value CNAME.test.com # 创建单条CNAME记录')
-    print(f'python dns_operations.py --zid {ZID} --action import --input dns_records.txt # 从文件导入')
+    print(f'python dns_operations.py --zid {ZID} --action export --output dns_records.txt # 使用ZID导出到文件')
+    print(f'python dns_operations.py --domain {ZoneName} --action export --output dns_records.txt # 使用域名导出到文件')
+    print(f'python dns_operations.py --domain {ZoneName} --action create --host test --type CNAME --value CNAME.test.com # 使用域名创建单条CNAME记录')
+    print(f'python dns_operations.py --domain {ZoneName} --action import --input dns_records.txt # 使用域名从文件导入')
+    print(f'python dns_operations.py --list-domains # 列出所有域名及对应的ZID')
+    print(f'python dns_operations.py --query-domain example.com # 查询特定域名的ZID')
     print('\n')
     parser = argparse.ArgumentParser(description='DNS操作工具')
-    parser.add_argument('--action', required=True, 
-                        choices=['list', 'create', 'export', 'import'], 
+    parser.add_argument('--list-domains', action='store_true', help='列出所有域名及对应的ZID')
+    parser.add_argument('--query-domain', help='查询特定域名的ZID')
+    parser.add_argument('--action', choices=['list', 'create', 'export', 'import'], 
                         help='操作类型: list (列出记录), create (创建记录), export (导出记录到文件) 或 import (从文件导入记录)')
-    parser.add_argument('--zid', type=int, required=True, help='域名ID')
+    
+    # 使用互斥组，允许用户提供--zid或--domain，但不能同时提供两者
+    id_group = parser.add_mutually_exclusive_group()
+    id_group.add_argument('--zid', type=int, help='域名ID')
+    id_group.add_argument('--domain', help='域名，例如：example.com')
+    
     parser.add_argument('--host', help='主机记录，例如: example.com (仅创建记录时需要)')
     parser.add_argument('--type', choices=[t.value for t in RecordType], help='记录类型，例如: CNAME, A, AAAA等 (仅创建记录时需要)')
     parser.add_argument('--value', help='记录值 (仅创建记录时需要)')
@@ -541,11 +607,61 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, help='SRV记录端口 (可选)')
     
     args = parser.parse_args()
+    
+    # 处理列出所有域名的命令
+    if args.list_domains:
+        print("\n所有域名及对应的ZID:")
+        response = list_zones()
+        if response.success and response.data and "Result" in response.data and "Zones" in response.data["Result"]:
+            print("-" * 60)
+            print(f"{'域名':<30} | {'ZID':<20}")
+            print("-" * 60)
+            for zone in response.data["Result"]["Zones"]:
+                zid = zone.get('ZID', 'N/A')
+                zone_name = zone.get('ZoneName', 'N/A')
+                print(f"{zone_name:<30} | {zid:<20}")
+            print("-" * 60)
+        else:
+            print(f"获取域名列表失败: {response.message}")
+        exit(0)
+    
+    # 处理查询特定域名ZID的命令
+    if args.query_domain:
+        print(f"\n查询域名 {args.query_domain} 的ZID:")
+        result = get_zid_by_domain(args.query_domain)
+        if result.success:
+            print(f"域名: {args.query_domain}")
+            print(f"ZID: {result.data}")
+        else:
+            print(f"错误: {result.message}")
+        exit(0)
+    
+    # 检查是否提供了必要的参数
+    if not args.action:
+        print("错误: 必须提供 --action 参数")
+        parser.print_help()
+        exit(1)
+        
+    # 如果提供了域名而不是ZID，则自动获取ZID
+    zid = args.zid
+    if args.domain and not args.zid:
+        zid_result = get_zid_by_domain(args.domain)
+        if not zid_result.success:
+            print(f"错误: {zid_result.message}")
+            exit(1)
+        zid = zid_result.data
+        print(f"已自动识别域名 {args.domain} 的ZID: {zid}")
+    
+    # 确保有ZID
+    if not zid:
+        print("错误: 必须提供 --zid 或 --domain 参数")
+        parser.print_help()
+        exit(1)
 
     # 根据action参数执行不同的操作
     if args.action == 'list':
         # 列出指定域名ID的所有记录
-        response = list_records(zid=args.zid)
+        response = list_records(zid=zid)
         if response.success:
             print("\n域名记录列表:")
             print(json.dumps(response.data, indent=2, ensure_ascii=False))
@@ -556,7 +672,7 @@ if __name__ == "__main__":
         # 验证创建记录所需的参数
         if not all([args.host, args.type, args.value]):
             print("错误: 创建记录需要提供 --host, --type 和 --value 参数")
-            print('--host test.com --type CNAME --value CNAME.test.com --zid 12345')
+            print('--host test --type CNAME --value CNAME.test.com')
             parser.print_help()
             exit(1)
             
@@ -566,7 +682,7 @@ if __name__ == "__main__":
             host=args.host,
             record_type=args.type,
             value=args.value,
-            zid=args.zid,
+            zid=zid,
             skip_check=args.skip_check,
             ttl=args.ttl,
             priority=args.priority,
@@ -581,7 +697,7 @@ if __name__ == "__main__":
     elif args.action == 'export':
         # 导出记录到文件
         print("\n导出DNS记录到文件:")
-        response = list_records(zid=args.zid)
+        response = list_records(zid=zid)
         if response.success:
             result = export_records_to_file(response.data, args.output)
             if result.success:
@@ -602,7 +718,7 @@ if __name__ == "__main__":
         print("\n从文件导入DNS记录:")
         response = create_records_from_file(
             file_path=args.input,
-            zid=args.zid,
+            zid=zid,
             skip_check=args.skip_check
         )
         if response.success:
