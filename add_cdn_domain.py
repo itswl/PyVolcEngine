@@ -261,7 +261,8 @@ def parse_arguments():
     parser.add_argument('--cert-name', help='证书名称，启用HTTPS时必填')
     parser.add_argument('--project', default='default', help='项目名称')
     parser.add_argument('--instance_type', help='实例类型，例如: tos')
-    parser.add_argument('--auto-cert', action='store_true', help='是否自动获取证书')
+    parser.add_argument('--auto-cert', type=lambda x: x.lower() not in ('false', '0', 'no', 'n'), 
+                        default=False, help='是否自动获取证书，可接受的值: true/false, yes/no, 1/0')
     
     return parser.parse_args()
 

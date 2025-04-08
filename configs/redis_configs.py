@@ -3,10 +3,10 @@
 instance_configs = [
     {
         "instance": {
-            "name": "eve-cn-prod-redis",
+            "name": "eve-cn-fat-redis",
             "engine_version": "7.0",  # Redis版本
             "node_number": 2,  # 节点数量
-            "shard_capacity": 8192,  # 分片容量，单位MB
+            "shard_capacity": 256,  # 分片容量，单位MB
             "sharded_cluster": 0,  # 是否为分片集群
             "port": 6379,  # Redis端口
             "password": "ns2024Xqrif848",  # Redis密码
@@ -65,11 +65,11 @@ instance_configs = [
         },
         # EIP配置，不配置不创建，选择一个使用
         # 方式1: 字符串引用 (取消注释使用)
-        # "eip": "eve-cn-prod-es",  # 使用eip_config.py中配置的名称
+        # "eip": "eve-cn-fat-es",  # 使用eip_config.py中配置的名称
         
         ## 方式2: 直接配置(取消注释使用)
         "eip": {
-            "name": "eve-cn-prod-redis",  # EIP名称
+            "name": "eve-cn-fat-redis",  # EIP名称
             "description": "EIP for Production Redis instance",  # EIP描述
             "billing_type": 3,  # 计费类型：3表示按量付费
             "bandwidth": 10,  # 带宽大小，单位Mbps
