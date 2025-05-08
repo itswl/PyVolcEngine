@@ -89,7 +89,7 @@ class ECSManager:
         return None, None
 
     @handle_api_exception
-    def wait_for_instance_status(self, instance_id, target_status="RUNNING", timeout=600, interval=10):
+    def wait_for_instance_status(self, instance_id, target_status="RUNNING", timeout=600, interval=100):
         """等待ECS实例变为指定状态
         
         Args:
@@ -101,12 +101,11 @@ class ECSManager:
         def status_check_func(api_client, instance_id):
             list_request = volcenginesdkecs.DescribeInstancesRequest()
             list_response = api_client.describe_instances(list_request)
-            
-            if hasattr(list_response, 'Result') and hasattr(list_response.Result, 'Instances'):
-                for instance in list_response.Result.Instances:
-                    if instance.InstanceId == instance_id:
-                        return instance.Status
-            return None
+            if hasattr(list_response, 'instances'):
+                for instance in list_response.instances:
+                    if instance.instance_id == instance_id:
+                        return instance.status
+
         
         # 使用通用的实例状态检查器
         return InstanceStatusChecker.wait_for_instance_status(
@@ -155,51 +154,112 @@ class ECSManager:
             period_unit_map = {"Month": 1, "Year": 2}
             period_unit = period_unit_map.get(actual_config['period_unit'], 1)  # 默认使用1（月）
             
-            # 构建网络接口配置
-            network_interface = volcenginesdkecs.CreateInstanceRequestNetworkInterfacesItem(
-                subnet_id=actual_config['subnet_id'],
-                security_group_ids=actual_config['security_group_ids']
+            # 打印配置信息以便调试
+            logger.info(f"使用以下配置创建ECS实例:")
+            logger.info(f"实例名称: {actual_config['name']}")
+            logger.info(f"镜像ID: {actual_config['image_id']}")
+            logger.info(f"实例类型: {actual_config['instance_type_id']}") 
+            
+            # 创建网络接口对象
+            req_network_interfaces = volcenginesdkecs.NetworkInterfaceForRunInstancesInput(
+                security_group_ids=actual_config['security_group_ids'],
+                subnet_id=actual_config['subnet_id']
             )
             
-            # 构建创建实例请求
-            request = volcenginesdkecs.CreateInstanceRequest(
-                instance_name=actual_config['name'],
-                hostname=actual_config['hostname'],
-                instance_type=actual_config['instance_type'],
-                image_id=actual_config['image_id'],
-                zone_id=actual_config['zone_id'],
-                instance_charge_type=actual_config['instance_charge_type'],
-                period=actual_config['period'],
-                period_unit=period_unit,
-                project_name=actual_config['project_name'],
-                description=actual_config['description'],
-                network_interfaces=[network_interface]
-            )
+            # 创建卷对象
+            volumes = []
+            if 'volumes' in actual_config and actual_config['volumes']:
+                for volume in actual_config['volumes']:
+                    req_volume = volcenginesdkecs.VolumeForRunInstancesInput(
+                        delete_with_instance=str(volume.get('delete_with_instance', True)).lower(),
+                        size=volume['size'],
+                        volume_type=volume.get('volume_type', 'ESSD_PL0')
+                    )
+                    volumes.append(req_volume)
+            
+            # 创建EIP对象
+            req_eip_address = None
+            if 'eip' in actual_config and actual_config['eip']:
+                req_eip_address = volcenginesdkecs.EipAddressForRunInstancesInput(
+                    bandwidth_mbps=actual_config['eip'].get('bandwidth', 100),
+                    charge_type="PayByTraffic" if actual_config['eip'].get('billing_type') == 3 else "PayByBandwidth",
+                    isp=actual_config['eip'].get('isp', 'BGP'),
+                    release_with_instance=True
+                )
+            
+            # 准备请求参数
+            request_params = {
+                'image_id': actual_config['image_id'],
+                'instance_type_id': actual_config['instance_type_id'],
+                'zone_id': actual_config['zone_id'],
+                'count': 1,
+                'network_interfaces': [req_network_interfaces]
+            }
+            
+            # 添加EIP参数
+            if req_eip_address:
+                request_params['eip_address'] = req_eip_address
+            
+            # 添加其他参数
+            if 'name' in actual_config:
+                request_params['instance_name'] = actual_config['name']
+            if 'hostname' in actual_config:
+                request_params['hostname'] = actual_config['hostname']
+            if 'instance_charge_type' in actual_config:
+                request_params['instance_charge_type'] = actual_config['instance_charge_type']
+            if 'period' in actual_config:
+                request_params['period'] = actual_config['period']
+            if 'period_unit' in actual_config:
+                request_params['period_unit'] = actual_config['period_unit']
+            if 'description' in actual_config:
+                request_params['description'] = actual_config['description']
+            
+            # 添加密码参数 - 这是必需的
+            if 'password' in actual_config:
+                request_params['password'] = actual_config['password']
+            
+            # 添加其他缺失的参数
+            if 'auto_renew' in actual_config:
+                request_params['auto_renew'] = actual_config['auto_renew']
+            if 'auto_renew_period' in actual_config:
+                request_params['auto_renew_period'] = actual_config['auto_renew_period']
+            if 'user_data' in actual_config:
+                request_params['user_data'] = actual_config['user_data']
+            if 'install_run_command_agent' in actual_config:
+                request_params['install_run_command_agent'] = actual_config['install_run_command_agent']
+            if volumes:
+                request_params['volumes'] = volumes
+            if 'dry_run' in actual_config:
+                request_params['dry_run'] = actual_config['dry_run']
+            
+            # 创建请求对象 - 使用构造函数传参方式
+            request = volcenginesdkecs.RunInstancesRequest(**request_params)
+            print(request)
             
             # 发送创建请求
-            response = self.ecs_api.create_instance(request)
+            logger.info(f"发送ECS实例创建请求...")
+            response = self.ecs_api.run_instances(request)
             logger.info(f"ECS实例创建请求已发送: {response}")
             
-            # 等待实例就绪
-            if not self.wait_for_instance_status(response.Result.InstanceId, "RUNNING"):
-                logger.error("ECS实例创建后未能及时就绪")
+            # 检查是否是dry_run模式
+            if actual_config.get('dry_run', False):
+                logger.info("这是一个dry_run请求，不会实际创建实例")
                 return None, None, None
             
-            # 如果配置了EIP，则绑定EIP
-            eip_address = None
-            if actual_config.get('eip'):
-                # 创建EIP
-                eip_id, eip_address, eip_name = self.eip_manager.allocate_eip(actual_config['eip'])
-                if eip_id:
-                    # 绑定EIP到ECS实例
-                    self._associate_eip_to_instance(eip_id, response.Result.InstanceId)
-                    logger.info(f"已将EIP {eip_address} 绑定到ECS实例 {response.Result.InstanceId}")
-                else:
-                    logger.error("EIP创建失败，无法绑定到ECS实例")
-            
-            logger.info(f"ECS实例创建成功: {response.Result.InstanceId}")
-            return response.Result.InstanceId, actual_config['name'], eip_address
-            
+            # 处理响应结果 - 适应不同的响应结构
+            instance_ids = response.get('instance_ids')
+            # print(instance_ids)
+        
+            if not instance_ids:
+                logger.error("响应中没有实例ID信息")
+                return None, None, None
+                
+            # 等待实例就绪
+            for instance_id in instance_ids:
+                if not self.wait_for_instance_status(instance_id, "RUNNING"):
+                    logger.error("ECS实例创建后未能及时就绪")
+                    return None, None, None
+                
         except Exception as e:
             logger.error(f"创建ECS实例时发生异常: {e}")
             return None, None, None
@@ -220,7 +280,7 @@ class ECSManager:
             request = volcenginesdkvpc.AssociateEipAddressRequest(
                 allocation_id=allocation_id,
                 instance_id=instance_id,
-                instance_type="EcsInstance"
+                instance_type_id="EcsInstance"
             )
             
             # 发送绑定请求
@@ -296,7 +356,7 @@ def create_instances():
         logger.info(f"准备创建ECS实例: {ecs_name}")
         config = ecs_configs[ecs_name]
         logger.info(f"ECS配置信息:\n" + 
-                   f"- 实例类型: {config['instance_type']}\n" + 
+                   f"- 实例类型: {config['instance_type_id']}\n" + 
                    f"- 镜像ID: {config['image_id']}\n" + 
                    f"- 可用区: {config['zone_id']}\n" + 
                    f"- 名称: {config['name']}\n" + 
@@ -327,3 +387,93 @@ def create_instances():
         write_resource_info(created_instances, "创建")
     else:
         logger.warning("没有成功创建任何ECS实例")
+
+@handle_api_exception
+def delete_instances(instance_ids=None):
+    """删除ECS实例
+    
+    Args:
+        instance_ids: 要删除的ECS实例ID列表，如果为None，则尝试获取所有实例
+    
+    Returns:
+        bool: 操作是否成功
+    """
+    # 创建ECS管理器实例
+    ecs_manager = ECSManager()
+    
+    # 如果未提供实例ID列表，则尝试获取所有实例
+    if not instance_ids:
+        try:
+            list_request = volcenginesdkecs.DescribeInstancesRequest()
+            list_response = ecs_manager.ecs_api.describe_instances(list_request)
+            
+            instance_ids = []
+            if hasattr(list_response, 'Result') and hasattr(list_response.Result, 'Instances'):
+                for instance in list_response.Result.Instances:
+                    instance_ids.append(instance.InstanceId)
+                    
+            if not instance_ids:
+                logger.warning("未找到任何ECS实例")
+                return False
+                
+            logger.info(f"找到 {len(instance_ids)} 个ECS实例")
+        except Exception as e:
+            logger.error(f"获取ECS实例列表时发生异常: {e}")
+            return False
+    
+    # 删除实例
+    deleted_instances = []
+    for instance_id in instance_ids:
+        # 获取实例信息
+        instance_id, instance_name = ecs_manager.get_instance_by_id(instance_id)
+        if not instance_id:
+            logger.error(f"未找到ECS实例ID: {instance_id}")
+            continue
+            
+        # 检查是否有关联的EIP
+        eip_address = None
+        # 这里可以添加获取EIP的逻辑，如果需要的话
+        
+        # 删除ECS实例
+        logger.info(f"开始删除ECS实例 {instance_id}...")
+        if ecs_manager.delete_instance(instance_id):
+            logger.info(f"成功删除ECS实例: {instance_id}")
+            deleted_instances.append({
+                'instance_id': instance_id,
+                'instance_name': instance_name,
+                'eip_address': eip_address
+            })
+        else:
+            logger.error(f"ECS实例 {instance_id} 删除失败")
+    
+    # 输出删除结果汇总
+    if deleted_instances:
+        logger.info("\n=== ECS实例删除结果汇总 ===")
+        for instance in deleted_instances:
+            logger.info(f"已删除ECS实例 {instance['instance_name']}:\n- 实例ID: {instance['instance_id']}")
+        # 记录删除结果
+        write_resource_info(deleted_instances, "删除")
+        return True
+    else:
+        logger.warning("没有成功删除任何ECS实例")
+        return False
+
+# 如果需要，您可以在这里添加一个main函数，用于命令行调用
+if __name__ == "__main__":
+    import sys
+    
+    if len(sys.argv) < 2:
+        print("用法: python ecs_manager.py [create|delete] [instance_ids...]")
+        sys.exit(1)
+        
+    command = sys.argv[1].lower()
+    
+    if command == "create":
+        create_instances()
+    elif command == "delete":
+        instance_ids = sys.argv[2:] if len(sys.argv) > 2 else None
+        delete_instances(instance_ids)
+    else:
+        print(f"未知命令: {command}")
+        print("用法: python ecs_manager.py [create|delete] [instance_ids...]")
+        sys.exit(1)
