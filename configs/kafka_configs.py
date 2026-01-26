@@ -3,7 +3,7 @@
 instance_configs = [
     {
         "instance": {
-            "name": "eve-cn-prod-kafka",
+            "name": "cyberclone-cn-prod-kafka",
             "product_id": "kafka.30xrate.hw",  # Kafka规格
             "zone_id": "cn-shanghai-a,cn-shanghai-b,cn-shanghai-c",  # 可用区
             "storage_size": 300,  # 存储大小，单位GB

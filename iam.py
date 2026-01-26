@@ -294,19 +294,10 @@ class IAMManager:
             bool: 删除成功返回True，用户不存在返回False
         """
         try:
-            # 先检查用户是否存在
-            try:
-                list_users_request = self.api.ListUsersRequest(limit=1000)
-                list_users_response = self.client_api.list_users(list_users_request)
-                
-                user_exists = any(user.user_name == user_name 
-                                for user in list_users_response.user_metadata)
-                
-                if not user_exists:
-                    logger.warning(f"用户不存在，无法删除: {user_name}")
-                    return False
-            except Exception as e:
-                logger.warning(f"检查用户存在性失败: {user_name}, 错误: {str(e)}")
+            # 使用缓存检查用户是否存在
+            if not self._check_user_exists(user_name):
+                logger.warning(f"用户不存在，无法删除: {user_name}")
+                return False
             
             # 删除用户
             delete_user_request = self.api.DeleteUserRequest(
@@ -385,6 +376,43 @@ class IAMManager:
         except Exception as e:
             logger.error(f"获取用户所属用户组列表失败: {user_name}, 错误: {str(e)}")
             raise
+            
+    def check_resources_status(self) -> Dict[str, int]:
+        """检查当前IAM资源状态
+        
+        Returns:
+            Dict: 包含用户和用户组数量的字典
+        """
+        users = self._get_existing_users()
+        groups = self._get_existing_groups()
+        
+        return {
+            'total_users': len(users),
+            'total_groups': len(groups),
+            'configured_users': len(USER_CONFIG),
+            'configured_groups': len(TEAM_GROUPS)
+        }
+        
+    def cleanup_orphaned_resources(self, dry_run: bool = True) -> None:
+        """清理不在配置中的用户(实际删除需设置dry_run=False)"""
+        configured_usernames = {user['user_name'] for user in USER_CONFIG}
+        existing_users = self._get_existing_users()
+        
+        orphaned_users = []
+        for username, user in existing_users.items():
+            if username not in configured_usernames:
+                orphaned_users.append(username)
+        
+        if orphaned_users:
+            logger.info(f"发现{len(orphaned_users)}个未配置的用户: {orphaned_users}")
+            if not dry_run:
+                for username in orphaned_users:
+                    try:
+                        self.delete_user(username)
+                    except Exception as e:
+                        logger.error(f"删除用户{username}失败: {str(e)}")
+        else:
+            logger.info("未发现需要清理的用户")
 
 def main():
     """主函数
@@ -399,9 +427,10 @@ def main():
     
     # 创建命令行参数解析器
     parser = argparse.ArgumentParser(description='火山引擎IAM用户管理工具')
-    parser.add_argument('mode', choices=['full', 'list', 'delete', 'groups'],
-                        help='运行模式：full-完整流程，list-列出用户，delete-删除用户，groups-查看用户所属组')
+    parser.add_argument('mode', choices=['full', 'list', 'delete', 'groups', 'status', 'cleanup'],
+                        help='运行模式：full-完整流程，list-列出用户，delete-删除用户，groups-查看用户所属组，status-查看资源状态，cleanup-清理未配置的用户')
     parser.add_argument('--users', nargs='+', help='要删除的用户名列表（仅在delete模式下需要）或查看组的用户名（仅在groups模式下需要）')
+    parser.add_argument('--dry-run', action='store_true', help='仅预览不实际执行(仅在cleanup模式下有效)')
     
     args = parser.parse_args()
     
@@ -508,18 +537,37 @@ def main():
             if users:
                 logger.info("当前IAM用户列表:")
                 for user in users:
+                    # print(user)
                     # 获取该用户所属的用户组
                     try:
                         groups = iam_manager.list_user_groups(user.user_name)
                         if groups:
                             group_info = ", ".join([f"{group.display_name}" for group in groups])
-                            logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}, 所属用户组: {group_info}")
+                            logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}, 所属用户组: {group_info}, 主账号id: {user.account_id}")
                         else:
-                            logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}, 所属用户组: 无")
+                            logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}, 所属用户组: 无,主账号id: {user.account_id}")
                     except Exception as e:
                         logger.info(f"- 用户名: {user.user_name}, 显示名称: {user.display_name}, 所属用户组: 获取失败({str(e)})")
             else:
                 logger.info("当前没有IAM用户")
+                
+        elif args.mode == 'status':
+            # 查看资源状态模式
+            status = iam_manager.check_resources_status()
+            logger.info(f"IAM资源状态统计:")
+            logger.info(f"- 当前用户总数: {status['total_users']}")
+            logger.info(f"- 当前用户组总数: {status['total_groups']}")
+            logger.info(f"- 配置文件中用户数: {status['configured_users']}")
+            logger.info(f"- 配置文件中用户组数: {status['configured_groups']}")
+            
+        elif args.mode == 'cleanup':
+            # 清理模式
+            dry_run = args.dry_run if hasattr(args, 'dry_run') else True
+            if dry_run:
+                logger.info("预览模式，将显示需要清理的用户但不会实际删除")
+            else:
+                logger.info("实际清理模式，将删除未在配置中的用户")
+            iam_manager.cleanup_orphaned_resources(dry_run=dry_run)
 
     except Exception as e:
         logger.error(f"程序执行失败: {str(e)}")

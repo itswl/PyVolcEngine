@@ -1,6 +1,17 @@
 from __future__ import absolute_import
 from sign import APIConfig, APIClient, APIError
 
+'''
+export volcAK='YOUR_VOLC_AK'
+export volcSK='YOUR_VOLC_SK'
+
+
+
+export Service='billing'
+export Action='QueryBalanceAcct'
+export Version='2022-01-01'
+'''
+
 def volc_requests():
     try:
         config = APIConfig()

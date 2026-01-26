@@ -13,13 +13,7 @@
 # auth_type可以是："password"（仅密码登录）、"access_key"（仅访问密钥）、"both"（两者都需要）或"none"（都不需要）
 # password字段是可选的，如果不设置则使用默认密码
 USER_CONFIG = [
-    {"teams": ["product"], "display_name": "产品经理-张三", "user_name": "prod1", "auth_type": "password"},
-    {"teams": ["development"], "display_name": "开发工程师-李四", "user_name": "dev1", "auth_type": "both", "password": "Dev2024@Li4"},
-    {"teams": ["development"], "display_name": "开发工程师-王五", "user_name": "dev2", "auth_type": "both", "password": "Dev2024@Wang5"},
-    {"teams": ["development", "ops"], "display_name": "开发工程师-赵六", "user_name": "dev3", "auth_type": "both"},
-    {"teams": ["development"], "display_name": "开发工程师-孙七", "user_name": "dev4", "auth_type": "both"},
-    {"teams": ["product", "development"], "display_name": "产品经理-周八", "user_name": "prod2", "auth_type": "none"},
-    {"teams": ["ops", "development"], "display_name": "运维工程师-郑十", "user_name": "ops2", "auth_type": "access_key"},
+    {"teams": ["product"], "display_name": "USER_DISPLAY_NAME", "user_name": "user_name", "auth_type": "password", "password": "USER_PASSWORD"}
 ]
 
 # 用户组配置

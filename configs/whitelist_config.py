@@ -15,7 +15,7 @@ whitelist_config = {
         },
         {
             "name": "wan_server",
-            "ip_list": ["120.25.176.44", "47.57.186.97", "47.76.60.24"],
+            "ip_list": ["IP_PLACEHOLDER_1", "IP_PLACEHOLDER_2", "IP_PLACEHOLDER_3"],
             "description": "公网网络白名单",
             "type": "IPv4"
         }
